@@ -7,16 +7,19 @@
     <a href="https://github.com/edmogeor/jellyscore/releases">
       <img src="https://img.shields.io/github/v/release/edmogeor/jellyscore" alt="Latest release" />
     </a>
+    <a href="LICENSE">
+      <img src="https://img.shields.io/badge/License-GPL--3.0--or--later-blue.svg" alt="License: GPL-3.0-or-later" />
+    </a>
   </p>
 </div>
 
-JellyScore downloads theme music from YouTube for your movies and shows in Jellyfin 12+. Choose which libraries to use, then let it check new items or scan your existing library. It skips theme music you added yourself and uncertain matches.
+JellyScore automatically downloads theme music from YouTube for your movies and shows in Jellyfin 12+. Choose which libraries to use, then let it check new items or scan your existing library. It skips theme music you added yourself and uncertain matches.
 
 ## Features
 
-- Find theme music for new movies and shows, or scan your existing library.
-- Compare the title, release year, soundtrack details, and length of each recording. Download only when one match stands out; skip uncertain matches and existing theme music.
-- See scan progress and manage your downloads in Jellyfin.
+- Automatically find theme music for new movies and shows in your chosen libraries. Run a scan to cover items already there.
+- Check each recording's title, release year, soundtrack details, and length. Download the clearest match and skip uncertain results or existing theme music.
+- Follow scan progress and refresh or delete downloads from Jellyfin.
 
 ## Get started
 
@@ -63,3 +66,7 @@ The end-to-end tests need Docker, Python 3, curl, and the .NET 10 SDK. The test 
 Feel free to donate if you'd like to support development.
 
 <a href="https://www.buymeacoffee.com/edmogeor" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" /></a>
+
+## License
+
+[GPL-3.0-or-later](LICENSE)
