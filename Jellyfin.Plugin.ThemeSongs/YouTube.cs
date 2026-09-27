@@ -50,7 +50,7 @@ public sealed class YouTube
     public async Task<IReadOnlyList<Video>> Search(Work work, CancellationToken ct, bool nextPage = false)
     {
         var titles = new[] { work.Title, work.OriginalTitle }.Where(x => !string.IsNullOrWhiteSpace(x))
-            .Distinct(StringComparer.OrdinalIgnoreCase).Take(2);
+            .Distinct(StringComparer.OrdinalIgnoreCase);
         var videos = new Dictionary<string, Video>();
         foreach (var title in titles)
         {
@@ -236,11 +236,7 @@ public static partial class Matcher
         else if (minutes is >= 0.5 and <= 10) Add(8, "Duration");
         else Add(-20, "Duration");
         if (new[] { "music", "records", "soundtrack", "score", "film", "cinema" }.Any(channel.Contains)) Add(8, "Music channel");
-        if (title.Contains("top 10") || title.Contains("top10")) Add(-40, "Ranking video");
-        if (title.Contains("ranked")) Add(-30, "Ranking video");
         if (title.Contains("every ") || title.Contains("all ") && title.Contains("theme")) Add(-20, "Collection video");
-        if (title.Contains("tribute")) Add(-20, "Tribute");
-        if (title.Contains("parody")) Add(-40, "Parody");
         if (soundtrackMatch) { Add(40, "Matching soundtrack album"); if (hasArtist) Add(10, "Track and artist"); }
         return new Choice(video, recording, score, string.Join("; ", evidence));
     }
