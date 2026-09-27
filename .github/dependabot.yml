@@ -1,0 +1,20 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: Jellyfin.Controller
+      - dependency-name: Jellyfin.Model
+      - dependency-name: Jellyfin.Common
+  - package-ecosystem: docker
+    directory: /tests/e2e
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: jellyfin/jellyfin

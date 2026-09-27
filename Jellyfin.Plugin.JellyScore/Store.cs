@@ -1,7 +1,7 @@
 using System.Text.Json;
 using MediaBrowser.Common.Configuration;
 
-namespace Jellyfin.Plugin.ThemeSongs;
+namespace Jellyfin.Plugin.JellyScore;
 
 public sealed class ManagedTheme
 {

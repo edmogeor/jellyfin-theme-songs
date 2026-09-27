@@ -8,7 +8,7 @@ using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace Jellyfin.Plugin.ThemeSongs;
+namespace Jellyfin.Plugin.JellyScore;
 
 public sealed class NewItemWorker(ILibraryManager library, ThemeService themes, ILogger<NewItemWorker> logger) : BackgroundService
 {

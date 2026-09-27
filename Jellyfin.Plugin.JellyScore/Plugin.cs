@@ -6,7 +6,7 @@ using MediaBrowser.Model.Plugins;
 using MediaBrowser.Model.Serialization;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Jellyfin.Plugin.ThemeSongs;
+namespace Jellyfin.Plugin.JellyScore;
 
 // ReSharper disable once ClassNeverInstantiated.Global
 public sealed class Plugin : BasePlugin<Settings>, IHasWebPages
@@ -21,7 +21,7 @@ public sealed class Plugin : BasePlugin<Settings>, IHasWebPages
     public IEnumerable<PluginPageInfo> GetPages() => [new()
     {
         Name = Name,
-        EmbeddedResourcePath = "Jellyfin.Plugin.ThemeSongs.config.html",
+        EmbeddedResourcePath = "Jellyfin.Plugin.JellyScore.config.html",
         EnableInMainMenu = true,
         MenuIcon = "music_note"
     }];

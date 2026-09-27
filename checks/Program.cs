@@ -1,4 +1,4 @@
-using Jellyfin.Plugin.ThemeSongs;
+using Jellyfin.Plugin.JellyScore;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 
@@ -94,7 +94,7 @@ check(YouTube.DownloaderName(false, false, Architecture.X64) == "yt-dlp-linux-x6
 check(YouTube.DownloaderName(false, false, Architecture.Arm64, true) == "yt-dlp-linux-musl-arm64", "Alpine arm64 binary");
 check(YouTube.DownloaderName(true, false, Architecture.Arm64) == "yt-dlp-windows-arm64.exe", "Windows arm64 binary");
 check(YouTube.DownloaderName(false, true, Architecture.Arm64) == "yt-dlp-macos", "macOS universal binary");
-check(!File.Exists("dist/ThemeSongs.zip") || System.IO.Compression.ZipFile.OpenRead("dist/ThemeSongs.zip").Entries.Count == 8, "one archive contains DLL and seven executables");
+check(!File.Exists("dist/JellyScore.zip") || System.IO.Compression.ZipFile.OpenRead("dist/JellyScore.zip").Entries.Count == 8, "one archive contains DLL and seven executables");
 var folder = Path.Combine(Path.GetTempPath(), "theme-songs-checks-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(folder);
 try

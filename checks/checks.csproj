@@ -3,6 +3,6 @@
     <OutputType>Exe</OutputType>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../Jellyfin.Plugin.ThemeSongs/Jellyfin.Plugin.ThemeSongs.csproj" />
+    <ProjectReference Include="../Jellyfin.Plugin.JellyScore/Jellyfin.Plugin.JellyScore.csproj" />
   </ItemGroup>
 </Project>

@@ -4,7 +4,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using MediaBrowser.Controller.MediaEncoding;
 
-namespace Jellyfin.Plugin.ThemeSongs;
+namespace Jellyfin.Plugin.JellyScore;
 
 public static class Audio
 {

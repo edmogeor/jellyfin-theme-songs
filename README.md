@@ -60,7 +60,7 @@ make test-unit
 | `make up` | Keep a test server running at `http://127.0.0.1:18096`. |
 | `make package` | Bundle the plugin and all supported yt-dlp binaries in one archive. |
 
-The end-to-end tests need Docker, Python 3, curl, and the .NET 10 SDK. The test server uses `user` / `password`. To install a local build, run `make package` and use `dist/ThemeSongs.zip`.
+The end-to-end tests need Docker, Python 3, curl, and the .NET 10 SDK. The test server uses `user` / `password`. To install a local build, run `make package` and use `dist/JellyScore.zip`.
 
 ## Donations
 

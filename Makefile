@@ -13,10 +13,10 @@ format:
 
 check:
 	dotnet tool restore
-	dotnet build Jellyfin.Plugin.ThemeSongs/Jellyfin.Plugin.ThemeSongs.csproj -p:JellyfinVersion=12.0.0
-	dotnet build Jellyfin.Plugin.ThemeSongs/Jellyfin.Plugin.ThemeSongs.csproj -p:JellyfinVersion=12.1.0
+	dotnet build Jellyfin.Plugin.JellyScore/Jellyfin.Plugin.JellyScore.csproj -p:JellyfinVersion=12.0.0
+	dotnet build Jellyfin.Plugin.JellyScore/Jellyfin.Plugin.JellyScore.csproj -p:JellyfinVersion=12.1.0
 	dotnet csharpier check
-	dotnet jb inspectcode --no-build --swea --format=Text --output=- --LogLevel=OFF --verbosity=OFF Jellyfin.Plugin.ThemeSongs/Jellyfin.Plugin.ThemeSongs.csproj
+	dotnet jb inspectcode --no-build --swea --format=Text --output=- --LogLevel=OFF --verbosity=OFF Jellyfin.Plugin.JellyScore/Jellyfin.Plugin.JellyScore.csproj
 
 test-unit:
 	dotnet run --project checks/checks.csproj

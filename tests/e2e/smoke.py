@@ -117,7 +117,9 @@ assert status == 200, f"admin settings: {status}"
 assert settings.get("downloaderAvailable", settings.get("DownloaderAvailable")) is True, "bundled downloader missing"
 status, strings = request("GET", "/ThemeSongs/strings/en-us", token=token)
 assert status == 200 and strings["scanLibraries"] == "Scan libraries", f"English translations: {status} {strings}"
-status, _ = request("GET", "/ThemeSongs/strings/fr", token=token)
+status, strings = request("GET", "/ThemeSongs/strings/fr", token=token)
+assert status == 200 and strings["scanLibraries"] == "Analyser les bibliothèques", f"French translations: {status} {strings}"
+status, _ = request("GET", "/ThemeSongs/strings/zz", token=token)
 assert status == 404, f"unsupported translation should fall back to English: {status}"
 status, downloads = request("GET", "/ThemeSongs/downloads", token=token)
 assert status == 200 and downloads.get("total", downloads.get("Total")) == 0, f"empty managed list: {status}"

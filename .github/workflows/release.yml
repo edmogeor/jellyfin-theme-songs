@@ -43,9 +43,9 @@ jobs:
       - run: cp build.yaml release-notes.md dist/
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ThemeSongs
+          name: JellyScore
           path: |
-            dist/ThemeSongs.zip
+            dist/JellyScore.zip
             dist/build.yaml
             dist/release-notes.md
 
@@ -58,10 +58,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: ThemeSongs
+          name: JellyScore
           path: dist
-      - run: md5sum dist/ThemeSongs.zip > dist/plugin.md5
-      - run: gh release view "$GITHUB_REF_NAME" >/dev/null || gh release create "$GITHUB_REF_NAME" dist/ThemeSongs.zip dist/plugin.md5 dist/build.yaml --notes-file dist/release-notes.md
+      - run: md5sum dist/JellyScore.zip > dist/plugin.md5
+      - run: gh release view "$GITHUB_REF_NAME" >/dev/null || gh release create "$GITHUB_REF_NAME" dist/JellyScore.zip dist/plugin.md5 dist/build.yaml --notes-file dist/release-notes.md
         env:
           GH_TOKEN: ${{ github.token }}
       - uses: Kevinjil/jellyfin-plugin-repo-action@296850372cd569cbcc040e834222a5afed861485

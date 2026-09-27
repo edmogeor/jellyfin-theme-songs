@@ -3,7 +3,7 @@ using MediaBrowser.Model.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Jellyfin.Plugin.ThemeSongs;
+namespace Jellyfin.Plugin.JellyScore;
 
 [ApiController]
 [Route("ThemeSongs")]
@@ -18,7 +18,7 @@ public sealed class ThemeController(ThemeService themes, ThemeScan scan, ITaskMa
     [HttpGet("strings/{locale}")]
     public IActionResult Strings(string locale)
     {
-        var stream = typeof(ThemeController).Assembly.GetManifestResourceStream($"Jellyfin.Plugin.ThemeSongs.Strings.{locale}.json");
+        var stream = typeof(ThemeController).Assembly.GetManifestResourceStream($"Jellyfin.Plugin.JellyScore.Strings.{locale}.json");
         return stream is null ? NotFound() : File(stream, "application/json");
     }
 

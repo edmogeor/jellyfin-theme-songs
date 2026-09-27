@@ -8,7 +8,7 @@ using MediaBrowser.Controller.MediaEncoding;
 using MediaBrowser.Controller.Providers;
 using MediaBrowser.Model.IO;
 
-namespace Jellyfin.Plugin.ThemeSongs;
+namespace Jellyfin.Plugin.JellyScore;
 
 public sealed class ThemeService(ILibraryManager library, IProviderManager providers, IFileSystem fileSystem, IMediaEncoder encoder, Store store, YouTube youtube)
 {

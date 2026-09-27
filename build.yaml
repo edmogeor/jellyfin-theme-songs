@@ -10,7 +10,7 @@ overview: "Automatically finds theme music for your movies and shows."
 description: "Finds and normalizes matching themes while leaving existing themes untouched."
 category: "Metadata"
 artifacts:
-  - "Jellyfin.Plugin.ThemeSongs.dll"
+  - "Jellyfin.Plugin.JellyScore.dll"
   - "yt-dlp-linux-x64"
   - "yt-dlp-linux-arm64"
   - "yt-dlp-linux-musl-x64"

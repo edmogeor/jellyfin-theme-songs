@@ -2,7 +2,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Runtime.InteropServices;
 
-namespace Jellyfin.Plugin.ThemeSongs;
+namespace Jellyfin.Plugin.JellyScore;
 
 public sealed record Work(string Title, string? OriginalTitle, int? Year, bool Series);
 public sealed record Video(string Id, string Title, string Description, string Channel, int? Seconds,
