@@ -60,9 +60,9 @@ def scan_until(token, expected=None, expect_current=False):
             assert field(progress, "startedAt").startswith("20"), f"scan start time missing: {progress}"
             saw_current |= "Sorcerer" in field(progress, "currentItem")
         if status == 200 and not field(progress, "running") and field(progress, "runId") != field(before, "runId"):
-            assert field(progress, "processed") == field(progress, "total") == 4, f"scan did not process all items: {progress}"
+            assert field(progress, "processed") == field(progress, "total") == 5, f"scan did not process all items: {progress}"
             counts = ("added", "alreadyThemed", "excluded", "noMatch", "unsupported", "failed")
-            assert sum(field(progress, key) for key in counts) == 4, f"scan counts disagree: {progress}"
+            assert sum(field(progress, key) for key in counts) == 5, f"scan counts disagree: {progress}"
             if field(progress, "excluded") + field(progress, "noMatch"):
                 assert field(progress, "rejections") and all(": " in item for item in field(progress, "rejections")), (
                     f"scan omitted rejection reasons: {progress}"
@@ -189,6 +189,7 @@ for attempt in range(30):
     if status == 200 and {
         ("Movie", "Harry Potter and the Sorcerer's Stone", 2001),
         ("Movie", "Dune", 2021),
+        ("Movie", "User Theme", 2000),
         ("Series", "The Office (US)", 2005),
         ("Series", "Breaking Bad", 2008),
         ("Movie", "Unselected Example", 1999),
@@ -200,9 +201,17 @@ for attempt in range(30):
 else:
     raise SystemExit(f"Test media was not indexed: {status} {items}")
 movie = next(item for item in items["Items"] if "Sorcerer" in item["Name"])
+user_theme = next(item for item in items["Items"] if item["Name"] == "User Theme")
 first_scan = scan_until(token, "added", expect_current=True)
 status, downloads = request("GET", "/ThemeSongs/downloads", token=token)
 assert status == 200, f"list themes: {status}"
+assert all(field(item, "itemId") != user_theme["Id"] for item in field(downloads, "items")), (
+    f"user-provided theme became managed: {downloads}"
+)
+status, _ = request("DELETE", f"/ThemeSongs/{user_theme['Id']}", token=token)
+assert status == 409, f"delete user-provided theme: {status}"
+subprocess.run(["docker", "compose", "-f", "tests/e2e/compose.yaml", "exec", "-T", "jellyfin", "cmp", "-s",
+                "/tmp/user-theme-original", "/media/movies/User Theme (2000)/theme.mp3"], check=True)
 dune = next((item for item in field(downloads, "items") if field(item, "name") == "Dune"), None)
 assert dune is not None and field(dune, "status") == "Active", f"Dune soundtrack track was not discovered: {downloads}"
 theme = next((item for item in field(downloads, "items") if uuid.UUID(field(item, "itemId")) == uuid.UUID(movie["Id"])), None)
@@ -245,6 +254,14 @@ assert status == 200 and (theme is None or field(theme, "status") == "Active"), 
 
 subprocess.run(["docker", "compose", "-f", "tests/e2e/compose.yaml", "exec", "-T", "jellyfin", "sh", "-c",
                 'printf "%s" external-edit >> "$1"', "sh", field(dune, "path")], check=True)
+subprocess.run(["docker", "compose", "-f", "tests/e2e/compose.yaml", "exec", "-T", "jellyfin", "cp",
+                field(dune, "path"), "/tmp/edited-theme-original"], check=True)
+status, _ = request("POST", f"/ThemeSongs/{field(dune, 'itemId')}/refresh", token=token)
+assert status == 409, f"refresh externally edited theme: {status}"
+status, _ = request("DELETE", f"/ThemeSongs/{field(dune, 'itemId')}", token=token)
+assert status == 409, f"delete externally edited theme: {status}"
+subprocess.run(["docker", "compose", "-f", "tests/e2e/compose.yaml", "exec", "-T", "jellyfin", "cmp", "-s",
+                "/tmp/edited-theme-original", field(dune, "path")], check=True)
 status, downloads = request("GET", "/ThemeSongs/downloads", token=token)
 assert status == 200 and all(field(item, "name") != "Dune" for item in field(downloads, "items")), (
     f"externally edited theme remains managed: {downloads}"

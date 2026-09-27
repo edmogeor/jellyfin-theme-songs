@@ -1,5 +1,6 @@
 using Jellyfin.Plugin.ThemeSongs;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 
 var work = new Work("Dune", null, 2021, false);
 const string licensed = "Provided to YouTube by Warner Records\nDune Main Theme · Hans Zimmer\nAlbum: Dune 2021 (Original Motion Picture Soundtrack)";
@@ -16,6 +17,9 @@ check(Matcher.Evaluate(partTwo, partTwoVideo) is { Score: > 0 }, "Part Two sound
 check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune Main Theme", licensed.Replace("2021", "1984"))) is null, "adaptation rejected");
 check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune Main Theme", licensed, 481)) is null, "overlong video rejected");
 check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune Main Theme", licensed, null)) is null, "unknown duration rejected");
+check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune 2021 Main Theme", "", 20)) is not null, "movie minimum duration included");
+check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune 2021 Main Theme", "", 19)) is null, "movie below minimum duration rejected");
+check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune 2021 Main Theme", "", 480)) is not null, "movie maximum duration included");
 check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune Main Theme", "Dune 2021 theme")) is { Score: > 0 }, "description resolves edition");
 check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune Main Theme", "Dune theme")) is null, "ambiguous edition rejected");
 check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune 2021 Main Theme", "")) is { Score: > 0 }, "theme identified by title without distributor metadata");
@@ -50,7 +54,10 @@ check(Matcher.Select(work, [original, video("bbbbbbbbbbb", "Dune Main Theme", li
     new HashSet<string>(), new HashSet<string>()) is null, "conflicting recordings rejected");
 var chosen = Matcher.Evaluate(work, original)!;
 check(Matcher.Select(work, [original], new HashSet<string>(), new HashSet<string> { chosen.Recording }) is null, "refresh excludes installed recording");
-check(Matcher.Select(work, [original], new HashSet<string>(), new HashSet<string>()) is not null, "excluded recording was otherwise eligible");
+check(Matcher.Select(work, [original, original with { Id = "bbbbbbbbbbb" }], new HashSet<string>(), new HashSet<string>()) is not null,
+    "duplicate uploads of one recording do not create an ambiguous tie");
+check(Matcher.Select(work, [original, original with { Id = "bbbbbbbbbbb" }], new HashSet<string> { original.Id }, new HashSet<string>())?.Video.Id == "bbbbbbbbbbb",
+    "excluding one upload leaves another source of the same recording");
 check(Matcher.RejectionReason(work, [original], new HashSet<string>(), new HashSet<string> { chosen.Recording }) ==
     "Only previously used recordings were found", "excluded recording has distinct reason");
 check(Matcher.RejectionReason(work, [video("bbbbbbbbbbb", "Dune 1984 Main Theme", "")], new HashSet<string>(), new HashSet<string>()).Contains("Different release year"),
@@ -77,9 +84,33 @@ check(Matcher.Evaluate(office, video("bbbbbbbbbbb", "The Office (US) Opening Cre
     "series with an explicit regional qualifier need not repeat the premiere year");
 check(Matcher.Evaluate(office, video("bbbbbbbbbbb", "The Office UK Opening Credits", "", 70)) is null,
     "different regional version rejected");
+check(Matcher.Evaluate(office, video("bbbbbbbbbbb", "The Office (US) Opening Credits", "", 10)) is not null,
+    "series minimum duration included");
+check(Matcher.Evaluate(office, video("bbbbbbbbbbb", "The Office (US) Opening Credits", "", 301)) is null,
+    "series above maximum duration rejected");
+check(YouTube.FirstTrack("No tracklist here") is null, "album without a tracklist has no search hint");
+check(YouTube.FirstTrack("Tracklist:\n1) First Track\n2) Next Track") == "First Track", "parenthesized track number parsed");
 check(YouTube.DownloaderName(false, false, Architecture.X64) == "yt-dlp-linux-x64", "Linux x64 binary");
 check(YouTube.DownloaderName(false, false, Architecture.Arm64, true) == "yt-dlp-linux-musl-arm64", "Alpine arm64 binary");
 check(YouTube.DownloaderName(true, false, Architecture.Arm64) == "yt-dlp-windows-arm64.exe", "Windows arm64 binary");
 check(YouTube.DownloaderName(false, true, Architecture.Arm64) == "yt-dlp-macos", "macOS universal binary");
 check(!File.Exists("dist/ThemeSongs.zip") || System.IO.Compression.ZipFile.OpenRead("dist/ThemeSongs.zip").Entries.Count == 8, "one archive contains DLL and seven executables");
-Console.WriteLine("Matcher checks passed");
+var folder = Path.Combine(Path.GetTempPath(), "theme-songs-checks-" + Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(folder);
+try
+{
+    var path = Path.Combine(folder, "theme.mp3");
+    File.WriteAllText(path, "plugin theme");
+    var managed = new ManagedTheme { Folder = folder, Path = path, Hash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))) };
+    check(ThemeService.Status(managed) == "Active", "unchanged theme is active");
+    var other = Path.Combine(folder, "other.mp3");
+    File.Copy(path, other);
+    check(ThemeService.Status(new ManagedTheme { Folder = folder, Path = other, Hash = managed.Hash }) == "Missing or externally modified",
+        "identical audio at another path is not managed");
+    File.WriteAllText(path, "user edited theme");
+    check(ThemeService.Status(managed) == "Missing or externally modified", "edited theme is not active");
+    File.Delete(path);
+    check(ThemeService.Status(managed) == "Missing or externally modified", "deleted theme is not active");
+}
+finally { Directory.Delete(folder, true); }
+Console.WriteLine("Theme checks passed");
