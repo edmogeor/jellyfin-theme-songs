@@ -20,6 +20,7 @@ JellyScore automatically downloads theme music from YouTube for your movies and 
 - Check new items automatically and search the whole library after Jellyfin scans it. Run a scan yourself whenever you want.
 - Check each recording's title, release year, soundtrack details, and length. Download the clearest match and skip uncertain results or existing theme music.
 - Follow scan progress and refresh or delete downloads from Jellyfin.
+- Localized JellyScore configuration page: Danish, German, English (US), Spanish, Finnish, French, Italian, Japanese, Korean, Norwegian Bokmal, Dutch, Polish, Portuguese (Brazil), Russian, Swedish, and Chinese (Simplified).
 
 ## Get started
 
