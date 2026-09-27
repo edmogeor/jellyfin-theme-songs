@@ -1,5 +1,6 @@
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Common.Plugins;
+using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Plugins;
 using MediaBrowser.Model.Plugins;
 using MediaBrowser.Model.Serialization;
@@ -30,7 +31,9 @@ public sealed class Plugin : BasePlugin<Settings>, IHasWebPages
 public sealed class Settings : BasePluginConfiguration
 {
     public bool Enabled { get; set; } = true;
-    public Guid[] Libraries { get; set; } = [];
+    public Guid[]? Libraries { get; set; }
+
+    public Guid[] SelectedLibraries(ILibraryManager library) => Libraries ?? library.GetVirtualFolders().Select(f => Guid.Parse(f.ItemId)).ToArray();
 }
 
 // ReSharper disable once UnusedType.Global
@@ -42,6 +45,7 @@ public sealed class Registration : IPluginServiceRegistrator
         services.AddSingleton<Store>();
         services.AddSingleton<ThemeService>();
         services.AddHostedService<NewItemWorker>();
+        services.AddHostedService<LibraryScanWorker>();
         services.AddSingleton<ThemeScan>();
         services.AddSingleton<MediaBrowser.Model.Tasks.IScheduledTask>(sp => sp.GetRequiredService<ThemeScan>());
     }

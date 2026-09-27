@@ -11,9 +11,16 @@ namespace Jellyfin.Plugin.ThemeSongs;
 public sealed class ThemeController(ThemeService themes, ThemeScan scan, ITaskManager tasks, ILibraryManager library) : ControllerBase
 {
     [HttpGet("settings")]
-    public object Settings() => new { Plugin.Instance.Configuration.Enabled, Plugin.Instance.Configuration.Libraries,
+    public object Settings() => new { Plugin.Instance.Configuration.Enabled, Libraries = Plugin.Instance.Configuration.SelectedLibraries(library),
         DownloaderAvailable = System.IO.File.Exists(YouTube.DownloaderPath),
         LibrariesAvailable = library.GetVirtualFolders().Select(f => new { f.Name, f.ItemId }) };
+
+    [HttpGet("strings/{locale}")]
+    public IActionResult Strings(string locale)
+    {
+        var stream = typeof(ThemeController).Assembly.GetManifestResourceStream($"Jellyfin.Plugin.ThemeSongs.Strings.{locale}.json");
+        return stream is null ? NotFound() : File(stream, "application/json");
+    }
 
     public sealed record SettingsRequest(bool Enabled, Guid[]? Libraries);
 

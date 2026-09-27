@@ -111,9 +111,14 @@ token = login["AccessToken"]
 status, config = request("GET", f"/Plugins/{PLUGIN}/Configuration", token=token)
 assert status == 200, f"plugin not loaded: {status}"
 assert config["Enabled"] is True, "automatic processing must default to on"
+assert config.get("Libraries") is None, "new installs must default to all libraries"
 status, settings = request("GET", "/ThemeSongs/settings", token=token)
 assert status == 200, f"admin settings: {status}"
 assert settings.get("downloaderAvailable", settings.get("DownloaderAvailable")) is True, "bundled downloader missing"
+status, strings = request("GET", "/ThemeSongs/strings/en-us", token=token)
+assert status == 200 and strings["scanLibraries"] == "Scan libraries", f"English translations: {status} {strings}"
+status, _ = request("GET", "/ThemeSongs/strings/fr", token=token)
+assert status == 404, f"unsupported translation should fall back to English: {status}"
 status, downloads = request("GET", "/ThemeSongs/downloads", token=token)
 assert status == 200 and downloads.get("total", downloads.get("Total")) == 0, f"empty managed list: {status}"
 status, _ = request("POST", "/ThemeSongs/settings", {"enabled": False, "libraries": []}, token)
@@ -130,10 +135,23 @@ for _ in range(60):
     time.sleep(2)
 assert status == 200, f"plugin did not restart: {status}"
 assert_settings(token, True, selected)
+status, before = request("GET", "/ThemeSongs/scan", token=token)
+assert status == 200, f"read scan status: {status}"
+status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": []}, token)
+assert status == 204, f"clear selected libraries: {status}"
+status, _ = request("POST", "/Library/Refresh", token=token, timeout=120)
+assert status in (200, 204), f"start Jellyfin library scan: {status}"
+for _ in range(60):
+    status, progress = request("GET", "/ThemeSongs/scan", token=token)
+    if status == 200 and field(progress, "runId") != field(before, "runId"):
+        break
+    time.sleep(1)
+else:
+    raise AssertionError("JellyScore did not run after Jellyfin's library scan")
 status, _ = request("POST", "/ThemeSongs/settings", {"enabled": False, "libraries": []}, token)
 assert status == 204, f"disable automatic processing: {status}"
 assert_settings(token, False, [])
-for method, path in [("GET", "/ThemeSongs/downloads"), ("POST", "/ThemeSongs/scan"), ("POST", "/ThemeSongs/settings")]:
+for method, path in [("GET", "/ThemeSongs/downloads"), ("GET", "/ThemeSongs/strings/en-us"), ("POST", "/ThemeSongs/scan"), ("POST", "/ThemeSongs/settings")]:
     status, _ = request(method, path)
     assert status in (401, 403), f"unauthorized {path}: {status}"
 print("Jellyfin 12 plugin smoke checks passed")
@@ -153,6 +171,12 @@ print("Waiting for movie and series indexing...", flush=True)
 status, folders = request("GET", "/Library/VirtualFolders", token=token)
 assert status == 200, f"list libraries: {status}"
 library_ids = [next(folder["ItemId"] for folder in folders if folder["Name"] == name) for name in ("Films", "Shows")]
+status, _ = request("POST", f"/Plugins/{PLUGIN}/Configuration", {"Enabled": False, "Libraries": None}, token)
+assert status == 204, f"reset library selection to default: {status}"
+status, settings = request("GET", "/ThemeSongs/settings", token=token)
+assert status == 200 and {uuid.UUID(str(value)) for value in field(settings, "libraries")} == {
+    uuid.UUID(folder["ItemId"]) for folder in folders
+}, f"all libraries should be selected by default: {settings}"
 status, _ = request("POST", "/ThemeSongs/settings", {"enabled": False, "libraries": library_ids}, token)
 assert status == 204, f"select libraries: {status}"
 assert_settings(token, False, library_ids)

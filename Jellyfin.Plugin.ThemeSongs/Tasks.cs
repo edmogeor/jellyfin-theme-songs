@@ -60,6 +60,27 @@ public sealed class NewItemWorker(ILibraryManager library, ThemeService themes, 
     }
 }
 
+public sealed class LibraryScanWorker(ITaskManager tasks) : IHostedService
+{
+    public Task StartAsync(CancellationToken ct)
+    {
+        tasks.TaskCompleted += Completed;
+        return Task.CompletedTask;
+    }
+
+    private void Completed(object? sender, TaskCompletionEventArgs args)
+    {
+        if (args.Task.ScheduledTask.Key == "RefreshLibrary" && args.Result.Status == TaskCompletionStatus.Completed && Plugin.Instance.Configuration.Enabled)
+            tasks.QueueIfNotRunning<ThemeScan>();
+    }
+
+    public Task StopAsync(CancellationToken ct)
+    {
+        tasks.TaskCompleted -= Completed;
+        return Task.CompletedTask;
+    }
+}
+
 // ReSharper disable UnusedAutoPropertyAccessor.Global
 public sealed class ScanStatus
 {
@@ -98,7 +119,7 @@ public sealed class ThemeScan(ILibraryManager library, ThemeService themes, ILog
         try
         {
             themes.ResetSuppression();
-            var selected = Plugin.Instance.Configuration.Libraries;
+            var selected = Plugin.Instance.Configuration.SelectedLibraries(library);
             if (selected.Length == 0) { progress.Report(100); return; }
             var query = new InternalItemsQuery { IncludeItemTypes = [BaseItemKind.Movie, BaseItemKind.Series], AncestorIds = selected, Recursive = true };
             status.Total = library.GetCount(query);

@@ -67,44 +67,44 @@
   </style>
   <div data-role="content" class="content-primary">
     <h2 class="sectionTitle">JellyScore</h2>
-    <p class="fieldDescription">Automatically finds theme music for your movies and shows.</p>
+    <p class="fieldDescription" data-i18n="description">Automatically finds theme music for your movies and shows.</p>
     <form id="themeSettings" class="verticalSection">
-      <h3 class="sectionTitle">Libraries</h3>
+      <h3 class="sectionTitle" data-i18n="libraries">Libraries</h3>
       <div id="themeLibraries" class="checkboxListContainer"></div>
       <div class="checkboxContainer themeAutoOption">
-        <label class="emby-checkbox-label"><input type="checkbox" name="enabled" is="emby-checkbox"><span>Automatically process newly added content</span></label>
+        <label class="emby-checkbox-label"><input type="checkbox" name="enabled" is="emby-checkbox"><span data-i18n="automatic">Automatically process new items and library scans</span></label>
       </div>
-      <button is="emby-button" type="submit" class="raised button-submit" disabled>Save settings</button>
+      <button is="emby-button" type="submit" class="raised button-submit" data-i18n="saveSettings" disabled>Save settings</button>
     </form>
     <section class="verticalSection">
-      <h3 class="sectionTitle">Full scan</h3>
-      <p class="fieldDescription">Search selected libraries. Skip existing themes and retry deleted downloads.</p>
-      <button is="emby-button" id="themeScanStart" class="raised">Scan libraries</button>
+      <h3 class="sectionTitle" data-i18n="fullScan">Full scan</h3>
+      <p class="fieldDescription" data-i18n="scanHelp">Search selected libraries. Skip existing themes and retry deleted downloads.</p>
+      <button is="emby-button" id="themeScanStart" class="raised" data-i18n="scanLibraries">Scan libraries</button>
       <div id="themeScanPanel" hidden>
         <div class="themeProgressLabel"><span class="material-icons" aria-hidden="true">sync</span><p id="themeProgress" role="status" aria-live="polite"></p></div>
-        <progress id="themeScanBar" aria-label="Theme scan progress" max="100" value="0" style="width: 100%"></progress>
+        <progress id="themeScanBar" aria-label="Theme scan progress" data-i18n-aria-label="scanProgress" max="100" value="0" style="width: 100%"></progress>
         <p id="themeScanDetails" hidden></p>
         <div id="themeRejections"></div>
-        <button is="emby-button" id="themeScanCancel" class="raised button-delete" disabled hidden>Cancel scan</button>
+        <button is="emby-button" id="themeScanCancel" class="raised button-delete" data-i18n="cancelScan" disabled hidden>Cancel scan</button>
       </div>
     </section>
     <section class="verticalSection">
-      <h3 class="sectionTitle">Manage downloads</h3>
+      <h3 class="sectionTitle" data-i18n="manageDownloads">Manage downloads</h3>
       <div class="inputContainer themeSearch">
         <span class="material-icons" aria-hidden="true">search</span>
-        <input id="themeSearch" type="search" is="emby-input" placeholder="Title or library" aria-label="Search downloads">
+        <input id="themeSearch" type="search" is="emby-input" placeholder="Title or library" data-i18n-placeholder="searchHint" aria-label="Search downloads" data-i18n-aria-label="searchDownloads">
       </div>
       <p id="themeEmpty" hidden>No downloads.</p>
       <div style="overflow-x: auto">
-        <table id="themeTable" class="detailTable" aria-label="Manage downloads" hidden>
-          <thead><tr><th scope="col" class="detailTableHeaderCell">Theme</th><th scope="col" class="detailTableHeaderCell">Added</th><th scope="col" class="detailTableHeaderCell">Actions</th></tr></thead>
+        <table id="themeTable" class="detailTable" aria-label="Manage downloads" data-i18n-aria-label="downloadsTable" hidden>
+          <thead><tr><th scope="col" class="detailTableHeaderCell" data-i18n="theme">Theme</th><th scope="col" class="detailTableHeaderCell" data-i18n="added">Added</th><th scope="col" class="detailTableHeaderCell" data-i18n="actions">Actions</th></tr></thead>
           <tbody id="themeRows"></tbody>
         </table>
       </div>
-      <nav id="themePagination" aria-label="Downloads pages" hidden>
+      <nav id="themePagination" aria-label="Downloads pages" data-i18n-aria-label="downloadsPages" hidden>
         <span id="themePageInfo"></span>
-        <button is="emby-button" id="themePrevious" aria-label="Previous page" title="Previous page"><span class="material-icons" aria-hidden="true">chevron_left</span></button>
-        <button is="emby-button" id="themeNext" aria-label="Next page" title="Next page"><span class="material-icons" aria-hidden="true">chevron_right</span></button>
+        <button is="emby-button" id="themePrevious" aria-label="Previous page" data-i18n-aria-label="previousPage" title="Previous page" data-i18n-title="previousPage"><span class="material-icons" aria-hidden="true">chevron_left</span></button>
+        <button is="emby-button" id="themeNext" aria-label="Next page" data-i18n-aria-label="nextPage" title="Next page" data-i18n-title="nextPage"><span class="material-icons" aria-hidden="true">chevron_right</span></button>
       </nav>
     </section>
   </div>
@@ -118,6 +118,17 @@
       let savedSettings = '';
       let scanPollError = '';
       let visible = false;
+      let strings;
+      const t = (key, ...values) => (strings?.[key] ?? key).replace(/\{(\d+)\}/g, (_, index) => values[index]);
+      const localize = () => {
+        page.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+        for (const attribute of ['placeholder', 'aria-label', 'title']) {
+          page.querySelectorAll('[data-i18n-' + attribute + ']').forEach(el => {
+            el.setAttribute(attribute, t(el.getAttribute('data-i18n-' + attribute)));
+          });
+        }
+        updateRowActions();
+      };
       const settingsValue = () => JSON.stringify([$('#themeSettings').elements.enabled.checked,
         [...$('#themeSettings').querySelectorAll('input[name=library]:checked')].map(x => x.value.toLowerCase()).sort()]);
       const updateSave = () => { $('#themeSettings button[type=submit]').disabled = settingsValue() === savedSettings; };
@@ -125,7 +136,7 @@
         for (const button of page.querySelectorAll('#themeRows button[data-theme-action]')) {
           const busy = button.closest('tr').dataset.busy === 'true';
           button.disabled = scanRunning || busy;
-          button.title = scanRunning ? 'Available after scan' : busy ? 'Working…' : button.dataset.themeAction;
+          button.title = scanRunning ? t('availableAfterScan') : busy ? t('working') : button.dataset.themeAction;
         }
       };
       const request = async (path, options = {}) => {
@@ -138,6 +149,15 @@
         }
         return response.status === 204 ? null : response.json().catch(() => null);
       };
+      const loadStrings = async () => {
+        if (strings) { localize(); return; }
+        const locale = (document.documentElement.lang || navigator.language || 'en-us').toLowerCase();
+        for (const value of new Set([locale, locale.split('-')[0], 'en-us'])) {
+          try { strings = await request('strings/' + encodeURIComponent(value)); localize(); return; }
+          catch (e) { if (e.status !== 404) throw e; }
+        }
+        throw Error('No JellyScore translation dictionary is available.');
+      };
       const toast = text => Dashboard.alert(text);
       const temporary = e => e.status === 503 || e.message === 'Failed to fetch';
       const silent = e => temporary(e) || e.status === 401 || e.status === 403;
@@ -149,7 +169,7 @@
       async function settings() {
         const data = await request('settings');
         const form = $('#themeSettings');
-        if (!data.DownloaderAvailable) toast('yt-dlp is missing.');
+        if (!data.DownloaderAvailable) toast(t('downloaderMissing'));
         form.elements.enabled.checked = data.Enabled;
         $('#themeLibraries').replaceChildren(...data.LibrariesAvailable.map(lib => {
           const label = document.createElement('label'); label.className = 'emby-checkbox-label';
@@ -167,19 +187,19 @@
         if (current > 1 && (current - 1) * 25 >= total) { current--; return rows(); }
         const container = $('#themeRows'); container.replaceChildren();
         $('#themeEmpty').hidden = total !== 0;
-        $('#themeEmpty').textContent = $('#themeSearch').value ? 'No results.' : 'No downloads.';
+        $('#themeEmpty').textContent = t($('#themeSearch').value ? 'noResults' : 'noDownloads');
         $('#themeTable').hidden = total === 0;
         $('#themePagination').hidden = total <= 25;
         $('#themePrevious').disabled = current === 1;
         $('#themeNext').disabled = current * 25 >= total;
-        $('#themePageInfo').textContent = 'Page ' + current + ' of ' + Math.ceil(total / 25);
+        $('#themePageInfo').textContent = t('pageOf', current, Math.ceil(total / 25));
         const icon = name => { const span = document.createElement('span'); span.className = 'material-icons'; span.setAttribute('aria-hidden', 'true'); span.textContent = name; return span; };
         for (const item of data.Items) {
           const row = document.createElement('tr');
           const theme = document.createElement('td'); theme.className = 'detailTableBodyCell';
           const heading = document.createElement('strong'); heading.textContent = item.Name + ' (' + (item.Year || '?') + ')';
           const status = document.createElement('div'); status.className = 'fieldDescription';
-          status.hidden = item.Status === 'Active'; status.textContent = status.hidden ? '' : item.Status;
+          status.hidden = item.Status === 'Active'; status.textContent = status.hidden ? '' : t('modified');
           const date = new Date(item.Date).toLocaleString();
           const mobileDate = document.createElement('div'); mobileDate.className = 'themeMobileDate'; mobileDate.textContent = date;
           const error = document.createElement('div'); error.className = 'themeRowError'; error.hidden = true; error.setAttribute('role', 'alert');
@@ -192,23 +212,27 @@
           const added = document.createElement('td'); added.className = 'detailTableBodyCell'; added.textContent = date;
           const actions = document.createElement('td'); actions.className = 'detailTableBodyCell';
           const view = document.createElement('a'); view.className = 'emby-button'; view.href = item.Source; view.target = '_blank'; view.rel = 'noopener noreferrer';
-          view.setAttribute('aria-label', 'View source for ' + item.Name); view.title = 'View source'; view.append(icon('open_in_new'));
+          view.setAttribute('aria-label', t('viewSourceFor', item.Name)); view.title = t('viewSource'); view.append(icon('open_in_new'));
           const refresh = document.createElement('button', 'emby-button'); refresh.className = 'emby-button'; refresh.append(icon('refresh'));
-          refresh.setAttribute('aria-label', 'Refresh theme for ' + item.Name);
-          refresh.dataset.themeAction = 'Refresh theme';
+          refresh.setAttribute('aria-label', t('refreshThemeFor', item.Name));
+          refresh.dataset.themeAction = t('refreshTheme');
           refresh.onclick = async () => {
             if (row.dataset.busy === 'true') return;
-            setBusy('Refreshing…'); error.hidden = true;
-            try { toast((await request(item.ItemId + '/refresh', { method: 'POST' })).Result); await load(rows); }
+            setBusy(t('refreshing')); error.hidden = true;
+            try {
+              const result = (await request(item.ItemId + '/refresh', { method: 'POST' })).Result;
+              toast(t({ Replaced: 'replaced', 'No replacement found': 'noReplacement', 'Already themed': 'alreadyThemed' }[result] || result));
+              await load(rows);
+            }
             catch (e) { showRowError(e); }
             finally { setBusy(''); }
           };
           const remove = document.createElement('button', 'emby-button'); remove.className = 'emby-button'; remove.append(icon('delete'));
-          remove.setAttribute('aria-label', 'Delete theme for ' + item.Name);
-          remove.dataset.themeAction = 'Delete theme';
+          remove.setAttribute('aria-label', t('deleteThemeFor', item.Name));
+          remove.dataset.themeAction = t('deleteTheme');
           remove.onclick = async () => {
-            if (row.dataset.busy === 'true' || !confirm('Delete this theme? Automatic downloads pause until you scan again.')) return;
-            setBusy('Deleting…'); error.hidden = true;
+            if (row.dataset.busy === 'true' || !confirm(t('confirmDelete'))) return;
+            setBusy(t('deleting')); error.hidden = true;
             try { await request(item.ItemId, { method: 'DELETE' }); row.remove(); await load(rows); }
             catch (e) { showRowError(e); }
             finally { setBusy(''); }
@@ -235,16 +259,16 @@
         const remaining = data.Running && data.Processed > 0 && data.Total > data.Processed
           ? Math.ceil((Date.now() - Date.parse(data.StartedAt)) / 1000 / data.Processed * (data.Total - data.Processed)) : null;
         const estimate = data.Running && data.Processed < data.Total
-          ? remaining === null ? ' · Estimating…' : remaining < 60 ? ' · Less than a minute left' : ' · About ' + Math.ceil(remaining / 60) + ' min left'
-          : data.Running && !data.Total ? ' · Estimating…' : '';
-        $('#themeProgress').textContent = (data.Total ? 'Scanning ' + data.Processed + ' of ' + data.Total : 'Preparing scan') + (data.CurrentItem ? ' · ' + data.CurrentItem : '') + estimate;
-        const counts = [['Added', data.Added], ['Existing', data.AlreadyThemed], ['Excluded', data.Excluded], ['No match', data.NoMatch], ['Unsupported', data.Unsupported], ['Failed', data.Failed]];
-        const summary = counts.filter(([, count]) => count).map(([label, count]) => label + ' ' + count).join(' · ');
+          ? remaining === null ? ' · ' + t('estimating') : remaining < 60 ? ' · ' + t('lessThanMinute') : ' · ' + t('aboutMinutes', Math.ceil(remaining / 60))
+          : data.Running && !data.Total ? ' · ' + t('estimating') : '';
+        $('#themeProgress').textContent = (data.Total ? t('scanning', data.Processed, data.Total) : t('preparingScan')) + (data.CurrentItem ? ' · ' + data.CurrentItem : '') + estimate;
+        const counts = [['added', data.Added], ['existing', data.AlreadyThemed], ['excluded', data.Excluded], ['noMatch', data.NoMatch], ['unsupported', data.Unsupported], ['failed', data.Failed]];
+        const summary = counts.filter(([, count]) => count).map(([label, count]) => t(label) + ' ' + count).join(' · ');
         $('#themeScanDetails').hidden = !summary;
         $('#themeScanDetails').textContent = summary;
         const rejections = $('#themeRejections'); rejections.replaceChildren();
         if (data.Rejections.length) {
-          const heading = document.createElement('h4'); heading.textContent = 'Recent skipped items';
+          const heading = document.createElement('h4'); heading.textContent = t('recentSkipped');
           const list = document.createElement('ul');
           for (const reason of data.Rejections) { const item = document.createElement('li'); item.textContent = reason; list.append(item); }
           rejections.append(heading, list);
@@ -258,9 +282,8 @@
       });
       page.addEventListener('pageshow', () => {
         visible = true;
-        load(settings);
-        load(rows);
-        poll(); page.timer = setInterval(poll, 3000);
+        load(async () => { await loadStrings(); load(settings); load(rows); poll(); });
+        page.timer = setInterval(() => { if (strings) poll(); }, 3000);
       });
       page.addEventListener('pagehide', () => { visible = false; clearInterval(page.timer); });
       $('#themeSettings').addEventListener('change', updateSave);
@@ -272,7 +295,7 @@
         const submitted = settingsValue();
         $('#themeSettings button[type=submit]').disabled = true;
         try { await request('settings', { method: 'POST', body: JSON.stringify({ enabled, libraries }) });
-          savedSettings = submitted; toast('Settings saved.'); }
+          savedSettings = submitted; toast(t('settingsSaved')); }
         catch (e) { showError(e); }
         finally { updateSave(); }
       };

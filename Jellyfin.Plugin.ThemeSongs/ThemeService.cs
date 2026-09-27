@@ -87,7 +87,8 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
         if (item is not (Movie or Series) || item.IsVirtualItem || item.ExtraType is not null || item.SourceType != SourceType.Library)
             throw new InvalidOperationException("Unsupported item.");
         var folders = library.GetCollectionFolders(item);
-        var selected = folders.FirstOrDefault(f => Plugin.Instance.Configuration.Libraries.Contains(f.Id));
+        var selectedLibraries = Plugin.Instance.Configuration.Libraries;
+        var selected = folders.FirstOrDefault(f => selectedLibraries is null || selectedLibraries.Contains(f.Id));
         if (selected is null) throw new InvalidOperationException("Item is not in a selected library.");
         var folder = Canonical(item is Series ? item.Path : Path.GetDirectoryName(item.Path)!);
         var roots = selected.PhysicalLocations.Append(selected.Path).Where(Directory.Exists).Select(Canonical).ToArray();

@@ -13,11 +13,11 @@
   </p>
 </div>
 
-JellyScore automatically downloads theme music from YouTube for your movies and shows in Jellyfin 12+. Choose which libraries to use, then let it check new items or scan your existing library. It skips theme music you added yourself and uncertain matches.
+JellyScore automatically downloads theme music from YouTube for your movies and shows in Jellyfin 12+. It checks new items as they arrive and scans your libraries after Jellyfin scans them. You can also start a scan yourself. It skips theme music you added yourself and uncertain matches.
 
 ## Features
 
-- Automatically find theme music for new movies and shows in your chosen libraries. Run a scan to cover items already there.
+- Check new items automatically and search the whole library after Jellyfin scans it. Run a scan yourself whenever you want.
 - Check each recording's title, release year, soundtrack details, and length. Download the clearest match and skip uncertain results or existing theme music.
 - Follow scan progress and refresh or delete downloads from Jellyfin.
 
@@ -30,8 +30,8 @@ JellyScore automatically downloads theme music from YouTube for your movies and 
    ```
 
 2. Install **JellyScore** from the plugin catalog and restart Jellyfin.
-3. Open JellyScore and select your movie and TV libraries. New items are checked automatically. Nothing is downloaded until you select a library.
-4. Select **Scan libraries** to check items already in your library.
+3. Open JellyScore. All libraries are selected by default, but you can choose which to include or turn off automatic scans.
+4. JellyScore checks new items as they are added and runs after Jellyfin's next library scan. Select **Scan libraries** to search now. Installing the plugin does not start a scan.
 
 Jellyfin needs permission to write to your media folders. Each movie needs its own folder. JellyScore uses Jellyfin's FFmpeg and comes with the YouTube download tool, so you do not need an API key.
 
@@ -60,6 +60,8 @@ make test-unit
 | `make package` | Bundle the plugin and all supported yt-dlp binaries in one archive. |
 
 The end-to-end tests need Docker, Python 3, curl, and the .NET 10 SDK. The test server uses `user` / `password`. To install a local build, run `make package` and use `dist/ThemeSongs.zip`.
+
+Dashboard text lives in `Jellyfin.Plugin.ThemeSongs/Strings/en-us.json`. Add a locale JSON file there to translate it; unsupported languages fall back to English.
 
 ## Donations
 

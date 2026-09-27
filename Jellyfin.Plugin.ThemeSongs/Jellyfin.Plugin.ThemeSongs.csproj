@@ -9,5 +9,6 @@
     <PackageReference Include="Jellyfin.Common" Version="$(JellyfinVersion)"><ExcludeAssets>runtime</ExcludeAssets></PackageReference>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <EmbeddedResource Include="config.html" />
+    <EmbeddedResource Include="Strings/*.json" />
   </ItemGroup>
 </Project>
