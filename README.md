@@ -1,25 +1,66 @@
-# JellyScore
+<div align="center">
+  <img src="jellyscore.svg" width="800" alt="JellyScore" />
+  <h1>JellyScore for Jellyfin</h1>
+  <p>
+    <a href="https://github.com/edmogeor/jellyfin-theme-songs/actions/workflows/ci.yml">
+      <img src="https://github.com/edmogeor/jellyfin-theme-songs/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" />
+    </a>
+    <a href="https://github.com/edmogeor/jellyfin-theme-songs/releases">
+      <img src="https://img.shields.io/github/v/release/edmogeor/jellyfin-theme-songs" alt="Latest release" />
+    </a>
+  </p>
+</div>
 
-<img src="jellyscore.svg" alt="JellyScore logo" width="800">
+JellyScore downloads theme music from YouTube for your movies and shows in Jellyfin 12+. Choose which libraries to use, then let it find themes for new items or scan your existing library. It skips themes you added yourself and uncertain matches.
 
-Jellyfin plugin targeting server **12.0+** (.NET 10). Finds conservative theme recordings for new movies and physical TV series. Nothing is downloaded on installation. A selected-library rescan is available on the plugin dashboard.
+## Features
 
-## Install
+- Find themes for new movies and shows, or scan your existing library.
+- Compare the title, release year, soundtrack details, and length of each recording. Download only when one match stands out; skip uncertain matches and existing themes.
+- See scan progress and manage your downloads in Jellyfin.
 
-In Jellyfin 12+, open **Dashboard → Plugins → Repositories** and add:
+## Get started
 
-```text
-https://raw.githubusercontent.com/edmogeor/jellyfin-theme-songs/manifest-release/manifest.json
-```
+1. In Jellyfin, open **Dashboard > Plugins > Repositories** and add:
 
-Then install **JellyScore** from the plugin catalog and restart Jellyfin. The single plugin archive contains yt-dlp for supported Linux (glibc and musl, x64 and arm64), Windows (x64 and arm64) and macOS (x64 and arm64). The plugin uses Jellyfin's configured FFmpeg and FFprobe. No API key or executable paths are required.
+   ```text
+   https://raw.githubusercontent.com/edmogeor/jellyfin-theme-songs/manifest-release/manifest.json
+   ```
 
-To build the same archive manually, run `bash package.sh` and install `dist/ThemeSongs.zip`. Packaging resolves the latest upstream yt-dlp release once and verifies SHA-256 checksums for every bundled binary. Set `YT_DLP_VERSION` to pin a particular release.
+2. Install **JellyScore** from the plugin catalog and restart Jellyfin.
+3. Open JellyScore and select your movie and TV libraries. New items are checked automatically. Nothing is downloaded until you select a library.
+4. Select **Scan libraries** to look for themes for items already in your library.
 
-Select movie and TV libraries on the plugin page, or run a manual full rescan. Automatic processing of newly added items is enabled by default, but only selected libraries are processed. The scan shows progress, a rough time estimate, and recent skipped items with their reasons. The media folders must be writable by Jellyfin. Externally changed themes and removed library items leave the managed list without deleting user files. Deletes pause automatic matching for that item until a full rescan.
+Jellyfin needs permission to write to your media folders. Each movie needs its own folder. JellyScore uses Jellyfin's FFmpeg and comes with the YouTube download tool, so you do not need an API key.
 
-YouTube search without an API key depends on yt-dlp's extraction and can require a newer yt-dlp package when YouTube changes. The matcher deliberately skips ambiguous or unverified results. Review YouTube access and content rights for your deployment.
+## Manage your themes
+
+The JellyScore page shows your downloads and scan progress. You can **Refresh** a theme to look for a different recording, or **Delete** it. Deleting pauses automatic downloads for that item until you run another full scan. JellyScore never deletes themes you added yourself or files changed outside the plugin.
+
+YouTube changes can interrupt searches. If that happens, you may need to update JellyScore to get a newer download tool.
 
 ## Development
 
-Run `make setup` to restore .NET tooling, `make check` to verify formatting, linting and builds against Jellyfin 12.0 and 12.1, or `make test-unit` for matching checks. `make test-e2e` starts a clean Docker Jellyfin 12 instance with two movies and two series, scans both libraries, and checks a real movie theme download plus refresh and deletion. `make test-smoke` checks the same Docker server and admin API without YouTube, which is the mode run on GitHub-hosted CI where YouTube access may fail. `make up` keeps a server at `http://127.0.0.1:18096` for manual testing. The test admin login is `user` / `password`. Docker, Python 3, curl and the .NET 10 SDK are needed for the end-to-end setup.
+```sh
+make setup
+make check
+make test-unit
+```
+
+| Command | Description |
+| --- | --- |
+| `make format` | Format C# with CSharpier. |
+| `make check` | Verify formatting, linting, and builds against Jellyfin 12.0 and 12.1. |
+| `make test-unit` | Run matcher checks. |
+| `make test-smoke` | Reset Docker and check the Jellyfin admin API without YouTube. |
+| `make test-e2e` | Reset Docker and check a real theme download, refresh, and deletion. |
+| `make up` | Keep a test server running at `http://127.0.0.1:18096`. |
+| `make package` | Bundle the plugin and all supported yt-dlp binaries in one archive. |
+
+The end-to-end tests need Docker, Python 3, curl, and the .NET 10 SDK. The test server uses `user` / `password`. To install a local build, run `make package` and use `dist/ThemeSongs.zip`.
+
+## Donations
+
+Feel free to donate if you'd like to support development.
+
+<a href="https://www.buymeacoffee.com/edmogeor" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" /></a>
