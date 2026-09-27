@@ -1,5 +1,7 @@
 # JellyScore
 
+<img src="jellyscore.svg" alt="JellyScore logo" width="800">
+
 Jellyfin plugin targeting server **12.0+** (.NET 10). Finds conservative theme recordings for new movies and physical TV series. Nothing is downloaded on installation. A selected-library rescan is available on the plugin dashboard.
 
 ## Install
