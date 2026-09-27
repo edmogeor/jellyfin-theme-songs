@@ -279,10 +279,9 @@ public static partial class Matcher
         var soundtrackTrack = albumMatches && track is not null && (Contains(title, track) || Contains(track, title));
         if (!Theme().IsMatch(title) && !soundtrackTrack)
         { reason = "Neither the title nor a matching soundtrack identifies this as music"; return null; }
-        Choice? candidate = soundtrackTrack
+        var candidate = soundtrackTrack
             ? Rank(work, video, Normal(track!) + "|" + Normal(artist ?? "") + "|" + Normal(album) + "|" + work.Year, true, artist is not null)
-            : null;
-        candidate ??= Rank(work, video, Normal(title) + "|" + work.Year, false);
+            : Rank(work, video, Normal(title) + "|" + work.Year, false);
         if (candidate.Score <= 0) { reason = "Ranking score is too low"; return null; }
         return candidate;
     }

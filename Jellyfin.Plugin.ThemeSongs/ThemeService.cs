@@ -199,16 +199,17 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
                     await using var stream = File.OpenRead(path);
                     // Complete ownership recording after the file is in place, even if cancellation arrives.
                     var hash = Convert.ToHexString(await SHA256.HashDataAsync(stream, CancellationToken.None));
+                    var result = replacement ? "Replaced" : "Added";
                     store.Change(s =>
                     {
                         s.Themes[id] = new ManagedTheme { ItemId = id, Folder = folder, Path = path, LibraryId = libraryId, Library = libraryName,
                             Kind = item is Movie ? "Movie" : "Series", Name = item.Name, Year = item.ProductionYear,
                             VideoId = choice.Video.Id, VideoTitle = choice.Video.Title, Recording = choice.Recording,
                             Hash = hash, Score = choice.Score, Evidence = choice.Evidence, Date = DateTimeOffset.UtcNow };
-                        s.Outcomes[id] = replacement ? "Replaced" : "Added";
+                        s.Outcomes[id] = result;
                     });
                     Refresh(item);
-                    return replacement ? "Replaced" : "Added";
+                    return result;
                 }
                 finally { if (File.Exists(temporary)) File.Delete(temporary); }
             }
