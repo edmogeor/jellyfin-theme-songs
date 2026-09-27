@@ -61,8 +61,6 @@ make test-unit
 
 The end-to-end tests need Docker, Python 3, curl, and the .NET 10 SDK. The test server uses `user` / `password`. To install a local build, run `make package` and use `dist/ThemeSongs.zip`.
 
-Dashboard text lives in `Jellyfin.Plugin.ThemeSongs/Strings/en-us.json`. Add a locale JSON file there to translate it; unsupported languages fall back to English.
-
 ## Donations
 
 Feel free to donate if you'd like to support development.
