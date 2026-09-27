@@ -69,4 +69,4 @@ Feel free to donate if you'd like to support development.
 
 ## License
 
-[GPL-3.0-or-later](LICENSE)
+Copyright © 2026 George Edmonds. Licensed under [GPL-3.0-or-later](LICENSE).
