@@ -1,0 +1,85 @@
+using Jellyfin.Plugin.ThemeSongs;
+using System.Runtime.InteropServices;
+
+var work = new Work("Dune", null, 2021, false);
+const string licensed = "Provided to YouTube by Warner Records\nDune Main Theme · Hans Zimmer\nAlbum: Dune 2021 (Original Motion Picture Soundtrack)";
+Video video(string id, string title, string description, int? length = 120) => new(id, title, description, "Soundtrack", length);
+void check(bool condition, string reason) { if (!condition) throw new Exception(reason); }
+
+var original = video("aaaaaaaaaaa", "Dune Main Theme", licensed);
+check(Matcher.Evaluate(work, original) is { Score: > 0 }, "soundtrack theme accepted");
+check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune Part Two Main Theme", licensed)) is null, "sequel rejected");
+var partTwo = new Work("Dune: Part Two", null, 2024, false);
+var partTwoVideo = video("COELrJTyosw", "Dune: Part Two Soundtrack | Only I Will Remain - Hans Zimmer | WaterTower", "Only I Will Remain, from the Official Soundtrack of Dune: Part Two", 404);
+check(Matcher.Evaluate(work, partTwoVideo) is null, "Part Two soundtrack is not the first Dune film");
+check(Matcher.Evaluate(partTwo, partTwoVideo) is { Score: > 0 }, "Part Two soundtrack can match Part Two without a year in the title");
+check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune Main Theme", licensed.Replace("2021", "1984"))) is null, "adaptation rejected");
+check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune Main Theme", licensed, 481)) is null, "overlong video rejected");
+check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune Main Theme", licensed, null)) is null, "unknown duration rejected");
+check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune Main Theme", "Dune 2021 theme")) is { Score: > 0 }, "description resolves edition");
+check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune Main Theme", "Dune theme")) is null, "ambiguous edition rejected");
+check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune 2021 Main Theme", "")) is { Score: > 0 }, "theme identified by title without distributor metadata");
+check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune 2021 Original Soundtrack", "")) is { Score: > 0 }, "soundtrack title accepted without theme keyword");
+check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune 2021 OST", "")) is { Score: > 0 }, "OST title accepted");
+var dream = video("M-bWFbJlwXk", "Dream of Arrakis", "", 189) with
+{ Album = "Dune (Original Motion Picture Soundtrack)", Track = "Dream of Arrakis", Artist = "Hans Zimmer", ReleaseYear = 2021 };
+check(YouTube.FirstTrack("DUNE Official Soundtrack\nTracklist:\n1. Dream of Arrakis\n2. Herald of the Change") == "Dream of Arrakis",
+    "album tracklist supplies a generic search hint");
+check(Matcher.Promising(work, video("bbbbbbbbbbb", "Dune 2021 Main Theme", "", 120)), "flat theme is shortlisted");
+check(!Matcher.Promising(work, video("bbbbbbbbbbb", "Dune 2021 scene", "", 120)), "scene clip avoids full metadata fetch");
+check(!Matcher.Promising(work, video("bbbbbbbbbbb", "Dune 2021 Full Album", "", 4460)), "full album is not shortlisted for download");
+check(Matcher.Select(work, [dream], new HashSet<string>(), new HashSet<string>())?.Video.Id == dream.Id,
+    "single soundtrack track is eligible without theme in its title");
+var soundtrackUpload = video("Phf-AC28SCY", "Dream of Arrakis | Dune OST",
+    "Music from Dune (2021) distributed by Warner Bros.\nDune (Original Motion Picture Soundtrack) by Hans Zimmer.", 190);
+check(Matcher.Evaluate(work, soundtrackUpload) is { Score: > 0 }, "description explicitly links film and year without structured album metadata");
+check(Matcher.Evaluate(new Work("Dune", null, 1984, false), soundtrackUpload) is null, "description year rejects wrong Dune adaptation");
+check(Matcher.Evaluate(new Work("Dune", null, 1984, false), dream) is null, "soundtrack release year rejects wrong adaptation");
+check(Matcher.Evaluate(work, dream with { Album = null }) is null, "named soundtrack track still needs a work link");
+var closing = video("bbbbbbbbbbb", "Dune 2021 Official Closing Credits Original Soundtrack", "");
+check(Matcher.Select(work, [closing], new HashSet<string>(), new HashSet<string>())?.Video.Id == closing.Id,
+    "closing credits are eligible when no main theme exists");
+check(Matcher.Select(work, [closing, video("ccccccccccc", "Dune 2021 Main Theme", "")], new HashSet<string>(), new HashSet<string>())?.Video.Id == "ccccccccccc",
+    "main theme wins over closing credits regardless of ranking signals");
+check(Matcher.Select(work, [dream, video("ccccccccccc", "Dune 2021 Main Theme", "")], new HashSet<string>(), new HashSet<string>())?.Video.Id == "ccccccccccc",
+    "main theme wins over soundtrack track fallback");
+check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune 1984 Main Theme", "")) is null, "wrong edition without metadata rejected");
+check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune 2021 Main Theme cover", "")) is null, "cover without metadata rejected");
+check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Top 10 Dune 2021 Themes", "")) is null, "ranking video rejected");
+check(Matcher.Select(work, [original, video("bbbbbbbbbbb", "Dune Main Theme", licensed.Replace("Hans Zimmer", "Other Artist"))],
+    new HashSet<string>(), new HashSet<string>()) is null, "conflicting recordings rejected");
+var chosen = Matcher.Evaluate(work, original)!;
+check(Matcher.Select(work, [original], new HashSet<string>(), new HashSet<string> { chosen.Recording }) is null, "refresh excludes installed recording");
+check(Matcher.Select(work, [original], new HashSet<string>(), new HashSet<string>()) is not null, "excluded recording was otherwise eligible");
+check(Matcher.RejectionReason(work, [original], new HashSet<string>(), new HashSet<string> { chosen.Recording }) ==
+    "Only previously used recordings were found", "excluded recording has distinct reason");
+check(Matcher.RejectionReason(work, [video("bbbbbbbbbbb", "Dune 1984 Main Theme", "")], new HashSet<string>(), new HashSet<string>()).Contains("Different release year"),
+    "rejected edition reports why");
+check(Matcher.RejectionReason(work, [original, video("bbbbbbbbbbb", "Dune Main Theme", licensed.Replace("Hans Zimmer", "Other Artist"))],
+    new HashSet<string>(), new HashSet<string>()) == "Multiple equally ranked theme recordings", "tie reports ambiguity");
+var harry = new Work("Harry Potter and the Sorcerer's Stone", null, 2001, false);
+var named = video("wtHra9tFISY", "Hedwig's Theme", "Provided to YouTube by Atlantic Records\n\nHedwig's Theme · John Williams\n\nHarry Potter and The Sorcerer's Stone Original Motion Picture Soundtrack\n\n℗ 2001 Warner Records Inc.", 309);
+check(Matcher.Promising(harry, named), "named themes remain in the cheap shortlist");
+check(Matcher.Evaluate(harry, named) is { Score: > 0 }, "named theme linked via soundtrack album");
+var alternate = video("bbbbbbbbbbb", "Harry Potter and the Sorcerer's Stone 2001 Main Theme", "");
+check(Matcher.Select(harry, [alternate, named],
+    new HashSet<string>(), new HashSet<string>())?.Video.Id == named.Id, "unique higher-scoring soundtrack beats title-only candidate");
+check(Matcher.Select(harry, [alternate, named], new HashSet<string> { named.Id }, new HashSet<string>())?.Video.Id == alternate.Id,
+    "failed source can fall back to a different eligible recording");
+check(Matcher.Evaluate(harry, named with { Description = named.Description.Replace("Provided to YouTube by Atlantic Records\n\n", "") }) is { Score: > 0 },
+    "named theme linked via soundtrack album without distributor metadata");
+check(Matcher.Evaluate(harry, video("ccccccccccc", "Hedwig's Theme", "Theme from Harry Potter and the Sorcerer's Stone", 309)) is { Score: > 0 },
+    "named theme linked by description without album or artist");
+check(Matcher.Evaluate(harry, video("ccccccccccc", "Hedwig's Theme", "", 309)) is null,
+    "search term alone does not establish which film a named track belongs to");
+var office = new Work("The Office (US)", null, 2005, true);
+check(Matcher.Evaluate(office, video("bbbbbbbbbbb", "The Office (US) Opening Credits", "", 70)) is { Score: > 0 },
+    "series with an explicit regional qualifier need not repeat the premiere year");
+check(Matcher.Evaluate(office, video("bbbbbbbbbbb", "The Office UK Opening Credits", "", 70)) is null,
+    "different regional version rejected");
+check(YouTube.DownloaderName(false, false, Architecture.X64) == "yt-dlp-linux-x64", "Linux x64 binary");
+check(YouTube.DownloaderName(false, false, Architecture.Arm64, true) == "yt-dlp-linux-musl-arm64", "Alpine arm64 binary");
+check(YouTube.DownloaderName(true, false, Architecture.Arm64) == "yt-dlp-windows-arm64.exe", "Windows arm64 binary");
+check(YouTube.DownloaderName(false, true, Architecture.Arm64) == "yt-dlp-macos", "macOS universal binary");
+check(!File.Exists("dist/ThemeSongs.zip") || System.IO.Compression.ZipFile.OpenRead("dist/ThemeSongs.zip").Entries.Count == 8, "one archive contains DLL and seven executables");
+Console.WriteLine("Matcher checks passed");

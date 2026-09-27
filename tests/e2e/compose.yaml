@@ -1,0 +1,18 @@
+name: theme-songs-e2e
+services:
+  jellyfin:
+    image: jellyfin/jellyfin:12
+    ports:
+      - "127.0.0.1:18096:8096"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8096/health"]
+      interval: 3s
+      timeout: 2s
+      retries: 60
+    volumes:
+      - jellyfin-config:/config
+      - ../../dist/universal:/config/plugins/theme-songs
+      - media:/media
+volumes:
+  jellyfin-config:
+  media:
