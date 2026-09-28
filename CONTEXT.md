@@ -1,0 +1,34 @@
+# JellyScore
+
+JellyScore is a Jellyfin 12 plugin that finds likely theme music on YouTube for movies and TV series, saves it where Jellyfin recognizes it, and lets administrators manage plugin-downloaded themes. A missed theme is preferable to a wrong match or a change to someone's own files.
+
+## Terms and scope
+
+- **Theme**: audio Jellyfin recognizes in an item's folder, including `theme.*` and audio in `theme-music/`.
+- **Managed theme**: a `theme.mp3` downloaded by this plugin whose item, folder, path, and file hash still match its ownership record. An existing, manually added, or externally modified file is not managed.
+- **Recording**: the track identity used to distinguish a replacement from another upload of the same music. A YouTube video ID identifies a source upload, not necessarily a different recording.
+- Only physical movies in dedicated folders and physical series roots inside selected, writable libraries are eligible. Episodes, seasons, extras, virtual items, and movies in mixed or shared folders are not.
+- The control surface is a Jellyfin administrator-only page and API. There is no manual candidate-review queue.
+
+## Discovery and selection
+
+- Automatic processing of new items is enabled by default. An unset library selection means all libraries; an explicitly empty selection means none. Installation does not itself backfill existing items.
+- New item events queue processing after metadata and the physical folder become available. A completed Jellyfin library refresh can also queue a scan while automatic processing is enabled. Administrators can start or cancel a full scan of selected libraries and see counts, recent rejection reasons, and progress.
+- Search uses the Jellyfin display title, original title when present, production year, and theme or soundtrack terms. Titles broaden retrieval; a search query alone never proves a candidate belongs to that work. Search results are shortlisted before full video metadata is fetched. A full-album tracklist can supply a search hint, but the album itself is not a theme candidate.
+- Reject mismatched works, years, adaptations, sequels, regional versions, covers, remixes, fan edits, trailers, reviews, compilations, and full albums. A named track can qualify when its title, soundtrack album, or description ties it to the correct work and edition. Missing edition evidence for an ambiguous title means no match. The YouTube upload date does not establish a film's release year.
+- For example, do not use a UK Office opening for *The Office (US)* or a 1984 or Part Two track for *Dune* (2021). A recording titled "Hedwig's Theme" can still qualify for *Harry Potter and the Sorcerer's Stone* when its soundtrack metadata links it to that film.
+- Require a known duration: 10 seconds to 5 minutes for series, 20 seconds to 8 minutes for movies. Rank eligible results using work and music evidence, duration, and channel signals. The score orders candidates; it is not a probability. For movies, prefer main themes, then closing credits, then soundtrack tracks. Accept only a positive-scoring recording that strictly outranks competing recordings; otherwise leave the item unthemed. Equivalent uploads of one recording do not create a tie.
+- Incomplete searches, unavailable tools, and failed downloads are failures, not proof that no match exists. A complete search without an eligible recording reports a reason. Retry transient failures with bounds; a failed download may try one other eligible source without permanently blacklisting the failed upload.
+
+## Audio and file ownership
+
+- The plugin packages platform-specific yt-dlp binaries and uses Jellyfin's FFmpeg installation. It downloads only the selected audio, converts it to `theme.mp3`, and uses two-pass EBU R128 loudness normalization targeting -18 LUFS and -3 dBTP before validating the output. It never processes manually added themes.
+- Place a movie's theme beside its movie file in a dedicated folder, or in a series' physical root. Check Jellyfin's recognized themes and physical theme files before downloading and again before committing. Do not overwrite a non-plugin theme, even if a stale record claims ownership.
+- Convert to a temporary file in the destination folder, validate it, then move it into place. A failed conversion or replacement must leave the existing theme untouched. Refresh Jellyfin's item metadata after a successful write or deletion.
+- Persist managed item IDs, canonical paths, library IDs, source video IDs, recording identities, hashes, scores, and dates in plugin configuration data, not in media folders. Serialize work per item. Before replacing or deleting a file, confirm that its location and hash still match the record. Treat a changed or moved file as user-owned and leave it alone. When listing themes, remove stale records for changed or deleted items without deleting their files; defer reconciliation when a media folder is temporarily unavailable.
+
+## Admin actions
+
+- The admin page controls automatic processing and selected libraries, shows scan progress, and lists searchable, paginated managed downloads with source links and status. Only administrators can read the management API or change settings, start scans, refresh, or delete.
+- **Refresh** excludes the current source video and recording, then seeks a different eligible recording. If none qualifies or the replacement fails, the existing file stays in place. Source and recording exclusions persist across restarts and scans; transient download failures do not create permanent exclusions.
+- **Delete** removes only an unchanged managed file, then suppresses automatic re-download for that item. A subsequent full scan clears deletion suppression, including a scan queued after a Jellyfin library refresh. Neither action removes another theme file or a `theme-music/` directory.

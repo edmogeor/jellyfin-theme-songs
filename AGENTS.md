@@ -1,10 +1,12 @@
 # Agent Instructions
 
+Read `CONTEXT.md` before changing discovery, matching, media files, or admin behavior. Keep product behavior and safety boundaries there; keep development commands and repo conventions here.
+
 ## Commands
 
-- `make setup` restores local .NET tools.
-- `make format` formats C# with CSharpier.
-- `make check` verifies formatting, linting, and Jellyfin 12.0/12.1 builds.
+- `make setup` restores local .NET tools and installs Node dependencies.
+- `make format` formats C# with CSharpier and the admin page with Prettier.
+- `make check` verifies formatting, lints inline JavaScript with oxlint, and builds against Jellyfin 12.0/12.1.
 - `make test-unit` runs matcher checks.
 - `make test-smoke` resets Docker and checks the Jellyfin admin API.
 - `make test-e2e` resets Docker and downloads a real theme for a test film.

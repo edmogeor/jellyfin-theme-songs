@@ -2,3 +2,4 @@
 **/obj/
 dist/
 references/
+node_modules/

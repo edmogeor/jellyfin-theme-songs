@@ -12,6 +12,10 @@ updates:
       - dependency-name: Jellyfin.Controller
       - dependency-name: Jellyfin.Model
       - dependency-name: Jellyfin.Common
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
   - package-ecosystem: docker
     directory: /tests/e2e
     schedule:
