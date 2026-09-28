@@ -45,9 +45,6 @@
     #themeSongsPage .inputContainer {
       margin-bottom: 0.75rem;
     }
-    #themeSongsPage #themeSettings > button {
-      margin: 0;
-    }
     #themeSongsPage #themeSettings > button:disabled,
     #themeSongsPage #themeSettings > button:disabled:hover {
       background: var(--jf-palette-action-disabledBackground);
@@ -96,6 +93,9 @@
       justify-content: center;
       min-width: 11rem;
     }
+    #themeSongsPage #themeSettings > button {
+      margin: 0;
+    }
     #themeSongsPage [hidden] {
       display: none !important;
     }
@@ -133,12 +133,6 @@
         transform: rotate(360deg);
       }
     }
-    @media (prefers-reduced-motion: reduce) {
-      #themeSongsPage .themeProgressLabel .material-icons,
-      #themeSongsPage .themeRowBusy .material-icons {
-        animation: none;
-      }
-    }
     #themeSongsPage #themeScanPanel #themeScanDetails {
       margin: 0.75rem 0 0;
     }
@@ -148,6 +142,7 @@
       color: var(--jf-palette-error-contrastText);
     }
     #themeSongsPage #themeScanBar {
+      width: 100%;
       height: 0.6rem;
       border: 0;
       border-radius: 999px;
@@ -169,6 +164,10 @@
       border-radius: 999px;
     }
     @media (prefers-reduced-motion: reduce) {
+      #themeSongsPage .themeProgressLabel .material-icons,
+      #themeSongsPage .themeRowBusy .material-icons {
+        animation: none;
+      }
       #themeSongsPage #themeScanBar::-webkit-progress-value {
         transition: none;
       }
@@ -214,23 +213,27 @@
       margin: 0.25rem 0 0;
       color: var(--jf-palette-text-secondary);
     }
-    #themeSongsPage .detailTable td:last-child :is(a, button).emby-button {
+    #themeSongsPage .detailTable td:last-child :is(a, button).emby-button,
+    #themeSongsPage #themePagination button.emby-button {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 2.75rem;
-      height: 2.75rem;
       padding: 0;
       border: 0;
       border-radius: 0.4rem;
       background: transparent;
       color: var(--jf-palette-text-secondary);
+    }
+    #themeSongsPage .detailTable td:last-child :is(a, button).emby-button {
+      width: 2.75rem;
+      height: 2.75rem;
       vertical-align: middle;
     }
     #themeSongsPage
       .detailTable
       td:last-child
-      :is(a, button).emby-button:hover:not(:disabled) {
+      :is(a, button).emby-button:hover:not(:disabled),
+    #themeSongsPage #themePagination button.emby-button:hover:not(:disabled) {
       background: var(--jf-palette-action-hover);
       color: var(--jf-palette-text-primary);
     }
@@ -247,7 +250,8 @@
     #themeSongsPage
       .detailTable
       td:last-child
-      :is(a, button).emby-button:focus-visible {
+      :is(a, button).emby-button:focus-visible,
+    #themeSongsPage #themePagination button.emby-button:focus-visible {
       outline: 2px solid var(--jf-palette-primary-main);
       outline-offset: 2px;
     }
@@ -262,27 +266,11 @@
       margin-top: 1rem;
     }
     #themeSongsPage #themePagination button.emby-button {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
       width: 2.5rem;
       height: 2.5rem;
-      padding: 0;
-      border: 0;
-      border-radius: 0.4rem;
-      background: transparent;
-      color: var(--jf-palette-text-secondary);
-    }
-    #themeSongsPage #themePagination button.emby-button:hover:not(:disabled) {
-      background: var(--jf-palette-action-hover);
-      color: var(--jf-palette-text-primary);
     }
     #themeSongsPage #themePagination button.emby-button:disabled {
       opacity: 0.4;
-    }
-    #themeSongsPage #themePagination button.emby-button:focus-visible {
-      outline: 2px solid var(--jf-palette-primary-main);
-      outline-offset: 2px;
     }
     #themeSongsPage #themePageInfo {
       margin-right: 0.75rem;
@@ -302,7 +290,6 @@
       #themeSongsPage #themeScanCancel:not([hidden]) {
         display: flex;
         width: 100%;
-        justify-content: center;
       }
       #themeSongsPage .detailTable th:nth-child(2),
       #themeSongsPage .detailTable td:nth-child(2) {
@@ -321,9 +308,6 @@
       #themeSongsPage .detailTable td:last-child :is(a, button).emby-button {
         width: 2.4rem;
         height: 2.4rem;
-      }
-      #themeSongsPage #themePagination {
-        justify-content: flex-end;
       }
     }
   </style>
@@ -378,7 +362,6 @@
           data-i18n-aria-label="scanProgress"
           max="100"
           value="0"
-          style="width: 100%"
         ></progress>
         <p id="themeScanDetails" hidden></p>
         <div id="themeRejections"></div>
