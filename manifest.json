@@ -9,6 +9,14 @@
     "owner": "edmogeor",
     "versions": [
       {
+        "changelog": "### Fixed\n\n- Exclude episode character introductions and opening scenes from TV theme matches without rejecting openings merely labelled with an episode number.\n- Let explicit TV themes compete with openings and intros, so an otherwise equal theme song ranks above a bare intro.\n\n",
+        "checksum": "d0f9778f0488f8418ea61bb2684856c3",
+        "sourceUrl": "https://github.com/edmogeor/jellyscore/releases/download/v0.1.8.0/JellyScore.zip",
+        "targetAbi": "12.0.0.0",
+        "timestamp": "2026-09-28T13:03:44Z",
+        "version": "0.1.8.0"
+      },
+      {
         "changelog": "### Fixed\n\n- Retry loading administrator translations after an initial failure so localized settings and diagnostics appear when the translations become available.\n\n",
         "checksum": "7c44f07f1aa965a414c50cd702fb1d10",
         "sourceUrl": "https://github.com/edmogeor/jellyscore/releases/download/v0.1.7.0/JellyScore.zip",
