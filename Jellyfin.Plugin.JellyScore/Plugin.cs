@@ -12,14 +12,14 @@ namespace Jellyfin.Plugin.JellyScore;
 public sealed class Plugin : BasePlugin<Settings>, IHasWebPages
 {
     public static Plugin Instance { get; private set; } = null!;
-    public override Guid Id => Guid.Parse("129e8a8b-87f1-48d3-802b-7dd151d72920");
-    public override string Name => "JellyScore";
+    public override Guid Id => Guid.Parse(JellyScoreConstants.PluginGuid);
+    public override string Name => JellyScoreConstants.PluginName;
     public override string Description => "Automatically finds theme music for your movies and shows.";
     public string DownloaderFolder { get; }
 
     public Plugin(IApplicationPaths paths, IXmlSerializer serializer) : base(paths, serializer)
     {
-        DownloaderFolder = Path.Combine(paths.PluginConfigurationsPath, "jellyscore-yt-dlp");
+        DownloaderFolder = Path.Combine(paths.PluginConfigurationsPath, JellyScoreConstants.DownloaderFolder);
         Instance = this;
     }
 
@@ -37,9 +37,10 @@ public sealed class Settings : BasePluginConfiguration
 {
     public bool Enabled { get; set; } = true;
     public Guid[]? Libraries { get; set; }
-    public int? MinimumMatchStrength { get; set; } = 50;
+    public int? MinimumMatchStrength { get; set; } = JellyScoreConstants.DefaultMatchStrength;
 
-    public int EffectiveMinimumMatchStrength => Math.Clamp(MinimumMatchStrength ?? 50, 0, 100);
+    public int EffectiveMinimumMatchStrength => Math.Clamp(MinimumMatchStrength ?? JellyScoreConstants.DefaultMatchStrength,
+        JellyScoreConstants.MinimumMatchStrength, JellyScoreConstants.MaximumMatchStrength);
 
     public Guid[] SelectedLibraries(ILibraryManager library) => Libraries ?? library.GetVirtualFolders().Select(f => Guid.Parse(f.ItemId)).ToArray();
 }

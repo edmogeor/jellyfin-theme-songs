@@ -68,7 +68,7 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
         try
         {
             if (!File.Exists(record.Path) || File.GetAttributes(record.Path).HasFlag(FileAttributes.ReparsePoint) ||
-                !string.Equals(Canonical(record.Path), Path.Combine(Canonical(record.Folder), "theme.mp3"), StringComparison.Ordinal))
+                !string.Equals(Canonical(record.Path), Path.Combine(Canonical(record.Folder), JellyScoreConstants.ThemeFile), StringComparison.Ordinal))
                 return "Missing or externally modified";
             using var file = File.OpenRead(record.Path);
             return Convert.ToHexString(SHA256.HashData(file)) == record.Hash ? "Active" : "Missing or externally modified";
@@ -106,7 +106,7 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
 
     private static bool Owned(ManagedTheme entry, BaseItem item, string folder)
     {
-        var path = Path.Combine(folder, "theme.mp3");
+        var path = Path.Combine(folder, JellyScoreConstants.ThemeFile);
         if (entry.ItemId != item.Id || !string.Equals(entry.Folder, folder, StringComparison.Ordinal) ||
             !string.Equals(entry.Path, path, StringComparison.Ordinal) || !File.Exists(path) ||
             File.GetAttributes(path).HasFlag(FileAttributes.ReparsePoint)) return false;
@@ -119,9 +119,9 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
         if (item.GetThemeSongs().Any(song => song.Path is not null &&
             string.Equals(Canonical(Path.GetDirectoryName(song.Path)!), folder, StringComparison.Ordinal) &&
             !string.Equals(Canonical(song.Path), owned, StringComparison.Ordinal))) return true;
-        if (Directory.EnumerateFiles(folder).Any(p => Path.GetFileNameWithoutExtension(p).Equals("theme", StringComparison.OrdinalIgnoreCase) &&
+        if (Directory.EnumerateFiles(folder).Any(p => Path.GetFileNameWithoutExtension(p).Equals(JellyScoreConstants.ThemeBaseName, StringComparison.OrdinalIgnoreCase) &&
             !string.Equals(p, owned, StringComparison.Ordinal))) return true;
-        var subfolder = Path.Combine(folder, "theme-music");
+        var subfolder = Path.Combine(folder, JellyScoreConstants.ThemeMusicFolder);
         return Directory.Exists(subfolder) && Directory.EnumerateFiles(subfolder, "*", SearchOption.AllDirectories).Any(p => AudioExtensions.Contains(Path.GetExtension(p)));
     }
 
@@ -178,8 +178,8 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
                 store.Change(s => s.Outcomes[id] = excluded ? result : result + ": " + reason);
                 return new(result, reasonCode);
             }
-            var path = Path.Combine(folder, "theme.mp3");
-            for (var sourceAttempt = 0; sourceAttempt < 2; sourceAttempt++)
+            var path = Path.Combine(folder, JellyScoreConstants.ThemeFile);
+            for (var sourceAttempt = 0; sourceAttempt < JellyScoreConstants.SourceAttempts; sourceAttempt++)
             {
                 var temporary = Path.Combine(folder, ".theme-" + Guid.NewGuid().ToString("N") + ".mp3");
                 try

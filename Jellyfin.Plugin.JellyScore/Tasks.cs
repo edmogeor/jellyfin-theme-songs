@@ -12,7 +12,7 @@ namespace Jellyfin.Plugin.JellyScore;
 
 public sealed class NewItemWorker(ILibraryManager library, ThemeService themes, ILogger<NewItemWorker> logger) : BackgroundService
 {
-    private readonly Channel<Guid> _queue = Channel.CreateBounded<Guid>(new BoundedChannelOptions(256) { FullMode = BoundedChannelFullMode.DropWrite, SingleReader = true });
+    private readonly Channel<Guid> _queue = Channel.CreateBounded<Guid>(new BoundedChannelOptions(JellyScoreConstants.ScanQueueCapacity) { FullMode = BoundedChannelFullMode.DropWrite, SingleReader = true });
     private readonly HashSet<Guid> _queued = [];
     private readonly Lock _gate = new();
 
@@ -38,12 +38,12 @@ public sealed class NewItemWorker(ILibraryManager library, ThemeService themes, 
             try
             {
                 // Library item creation often precedes metadata and directory availability.
-                await Task.Delay(TimeSpan.FromSeconds(20), ct);
-                for (var attempt = 0; attempt < 3; attempt++)
+                await Task.Delay(TimeSpan.FromSeconds(JellyScoreConstants.ItemReadyDelaySeconds), ct);
+                for (var attempt = 0; attempt < JellyScoreConstants.MetadataRetryAttempts; attempt++)
                 {
                     try { await themes.Process(id, false, ct); break; }
-                    catch (InvalidOperationException e) when (e.Message.Contains("not ready", StringComparison.Ordinal) && attempt < 2)
-                    { await Task.Delay(TimeSpan.FromSeconds(30), ct); }
+                    catch (InvalidOperationException e) when (e.Message.Contains("not ready", StringComparison.Ordinal) && attempt < JellyScoreConstants.MetadataRetryAttempts - 1)
+                    { await Task.Delay(TimeSpan.FromSeconds(JellyScoreConstants.MetadataRetryDelaySeconds), ct); }
                 }
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { break; }
@@ -70,7 +70,7 @@ public sealed class LibraryScanWorker(ITaskManager tasks) : IHostedService
 
     private void Completed(object? sender, TaskCompletionEventArgs args)
     {
-        if (args.Task.ScheduledTask.Key == "RefreshLibrary" && args.Result.Status == TaskCompletionStatus.Completed && Plugin.Instance.Configuration.Enabled)
+        if (args.Task.ScheduledTask.Key == JellyScoreConstants.LibraryRefreshKey && args.Result.Status == TaskCompletionStatus.Completed && Plugin.Instance.Configuration.Enabled)
             tasks.QueueIfNotRunning<ThemeScan>();
     }
 
@@ -84,12 +84,10 @@ public sealed class LibraryScanWorker(ITaskManager tasks) : IHostedService
 // ReSharper disable UnusedAutoPropertyAccessor.Global
 public sealed class ScanStatus
 {
-    private const int PriorItems = 3;
-
     public Guid RunId { get; set; }
     public DateTimeOffset StartedAt { get; set; }
     internal DateTimeOffset LastCompletedAt { get; set; }
-    internal double PriorSecondsPerItem { get; init; } = 20;
+    internal double PriorSecondsPerItem { get; init; } = JellyScoreConstants.ScanInitialSecondsPerItem;
     public bool Running { get; set; }
     public bool Cancelled { get; set; }
     public string? CurrentItem { get; set; }
@@ -109,7 +107,8 @@ public sealed class ScanStatus
         {
             if (!Running || Total <= Processed || Total == 0) return null;
             var completedAt = LastCompletedAt > StartedAt ? LastCompletedAt : StartedAt;
-            var secondsPerItem = ((completedAt - StartedAt).TotalSeconds + PriorItems * PriorSecondsPerItem) / (Processed + PriorItems);
+            var secondsPerItem = ((completedAt - StartedAt).TotalSeconds + JellyScoreConstants.ScanPriorItems * PriorSecondsPerItem) /
+                (Processed + JellyScoreConstants.ScanPriorItems);
             var stalledFor = Math.Max(0, (DateTimeOffset.UtcNow - completedAt).TotalSeconds - secondsPerItem);
             return (Total - Processed) * secondsPerItem + stalledFor;
         }
@@ -126,7 +125,7 @@ public sealed class ThemeScan(ILibraryManager library, ThemeService themes, Stor
 {
     private static ScanStatus _status = new();
     public string Name => "Scan with JellyScore";
-    public string Key => "ThemeSongsRescan";
+    public string Key => JellyScoreConstants.ScanTaskKey;
     public string Description => "Find themes in selected movie and TV libraries.";
     public string Category => "Library";
     public IEnumerable<TaskTriggerInfo> GetDefaultTriggers() => [];
@@ -136,26 +135,26 @@ public sealed class ThemeScan(ILibraryManager library, ThemeService themes, Stor
     {
         var prior = store.Read(s => s.ScanSecondsPerItem);
         _status = new ScanStatus { RunId = Guid.NewGuid(), StartedAt = DateTimeOffset.UtcNow, Running = true,
-            PriorSecondsPerItem = prior is > 0 and < 3600 ? prior.Value : 20 };
+            PriorSecondsPerItem = prior is > 0 and < JellyScoreConstants.ScanMaximumPriorSecondsPerItem ? prior.Value : JellyScoreConstants.ScanInitialSecondsPerItem };
         var status = _status;
         var active = new Dictionary<Guid, string>();
         try
         {
             themes.ResetSuppression();
             var selected = Plugin.Instance.Configuration.SelectedLibraries(library);
-            if (selected.Length == 0) { progress.Report(100); return; }
+            if (selected.Length == 0) { progress.Report(JellyScoreConstants.ProgressComplete); return; }
             var query = new InternalItemsQuery { IncludeItemTypes = [BaseItemKind.Movie, BaseItemKind.Series], AncestorIds = selected, Recursive = true };
             status.Total = library.GetCount(query);
             status.StartedAt = DateTimeOffset.UtcNow;
             status.LastCompletedAt = status.StartedAt;
-            for (var offset = 0; ; offset += 100)
+            for (var offset = 0; ; offset += JellyScoreConstants.ScanBatchSize)
             {
                 ct.ThrowIfCancellationRequested();
                 query.StartIndex = offset;
-                query.Limit = 100;
+                query.Limit = JellyScoreConstants.ScanBatchSize;
                 var batch = library.GetItemList(query).ToArray();
                 if (batch.Length == 0) break;
-                await Parallel.ForEachAsync(batch, new ParallelOptions { MaxDegreeOfParallelism = 3, CancellationToken = ct }, async (item, token) =>
+                await Parallel.ForEachAsync(batch, new ParallelOptions { MaxDegreeOfParallelism = JellyScoreConstants.ScanConcurrency, CancellationToken = ct }, async (item, token) =>
                 {
                     lock (status) { active[item.Id] = item.Name; status.CurrentItem = string.Join(", ", active.Values); }
                     try
@@ -169,7 +168,7 @@ public sealed class ThemeScan(ILibraryManager library, ThemeService themes, Stor
                             else status.NoMatch++;
                             if (result.ReasonCode is { } code)
                             {
-                                status.Rejections = [.. status.Rejections.TakeLast(4), new ScanRejection(item.Name, code)];
+                                status.Rejections = [.. status.Rejections.TakeLast(JellyScoreConstants.ScanRecentRejections - 1), new ScanRejection(item.Name, code)];
                                 logger.LogDebug("Skipped {ItemId}: {Reason}", item.Id, themes.Outcome(item.Id));
                             }
                         }
@@ -178,11 +177,11 @@ public sealed class ThemeScan(ILibraryManager library, ThemeService themes, Stor
                     catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
                     catch (Exception e) { lock (status) status.Failed++; logger.LogWarning("Theme scan failed for {ItemId}: {Message}", item.Id, e.Message); }
                     finally { lock (status) { active.Remove(item.Id); status.CurrentItem = active.Count == 0 ? null : string.Join(", ", active.Values); } }
-                    lock (status) { status.Processed++; status.LastCompletedAt = DateTimeOffset.UtcNow; progress.Report(100d * status.Processed / Math.Max(1, status.Total)); }
+                    lock (status) { status.Processed++; status.LastCompletedAt = DateTimeOffset.UtcNow; progress.Report((double)JellyScoreConstants.ProgressComplete * status.Processed / Math.Max(1, status.Total)); }
                 });
-                if (batch.Length < 100) break;
+                if (batch.Length < JellyScoreConstants.ScanBatchSize) break;
             }
-            progress.Report(100);
+            progress.Report(JellyScoreConstants.ProgressComplete);
             if (status.Processed > 0)
                 store.Change(s => s.ScanSecondsPerItem = (status.LastCompletedAt - status.StartedAt).TotalSeconds / status.Processed);
         }

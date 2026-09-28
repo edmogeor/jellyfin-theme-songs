@@ -30,7 +30,7 @@ public sealed class Store
 
     public Store(IApplicationPaths paths)
     {
-        _path = Path.Combine(paths.PluginConfigurationsPath, "theme-songs-state.json");
+        _path = Path.Combine(paths.PluginConfigurationsPath, JellyScoreConstants.StateFile);
         _state = File.Exists(_path) ? JsonSerializer.Deserialize<State>(File.ReadAllText(_path)) ?? new() : new();
     }
 

@@ -35,7 +35,7 @@ public sealed class ThemeController(ThemeService themes, ThemeScan scan, ITaskMa
     [HttpPost("settings")]
     public IActionResult Save([FromBody] SettingsRequest request)
     {
-        if (request.MinimumMatchStrength is < 0 or > 100) return BadRequest();
+        if (request.MinimumMatchStrength is < JellyScoreConstants.MinimumMatchStrength or > JellyScoreConstants.MaximumMatchStrength) return BadRequest();
         var config = Plugin.Instance.Configuration;
         config.Enabled = request.Enabled;
         config.Libraries = request.Libraries ?? [];
@@ -50,7 +50,8 @@ public sealed class ThemeController(ThemeService themes, ThemeScan scan, ITaskMa
         var all = themes.List();
         var rows = all.Where(r => string.IsNullOrEmpty(search) || r.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
             r.Library.Contains(search, StringComparison.OrdinalIgnoreCase)).ToArray();
-        return new { Total = rows.Length, AllTotal = all.Count, Items = rows.Skip((Math.Max(1, page) - 1) * 25).Take(25).Select(r => new {
+        return new { Total = rows.Length, AllTotal = all.Count, Items = rows.Skip((Math.Max(1, page) - 1) * JellyScoreConstants.AdminPageSize)
+            .Take(JellyScoreConstants.AdminPageSize).Select(r => new {
             r.ItemId, r.Name, r.Kind, r.Year, r.Library, r.Path, r.VideoTitle, r.Score, r.Evidence, r.Date,
             Source = "https://www.youtube.com/watch?v=" + r.VideoId,
             Status = ThemeService.Status(r) }) };

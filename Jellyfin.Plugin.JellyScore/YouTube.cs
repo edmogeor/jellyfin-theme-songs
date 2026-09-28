@@ -17,27 +17,27 @@ public sealed class SourceUnavailable(string message) : IOException(message);
 
 public sealed class YouTube
 {
-    private readonly SemaphoreSlim _metadataGate = new(4);
+    private readonly SemaphoreSlim _metadataGate = new(JellyScoreConstants.MetadataConcurrency);
     private static readonly SemaphoreSlim DownloaderGate = new(1);
-    private static readonly HttpClient DownloaderClient = new() { Timeout = TimeSpan.FromMinutes(2) };
+    private static readonly HttpClient DownloaderClient = new() { Timeout = TimeSpan.FromMinutes(JellyScoreConstants.DownloaderTimeoutMinutes) };
     private static string? _downloaderPath;
     public static string? DownloaderError { get; private set; }
 
     // ReSharper disable once MemberCanBePrivate.Global
     public static string DownloaderName(bool windows, bool macos, Architecture architecture, bool musl = false) => (windows, macos, architecture, musl) switch
     {
-        (true, _, Architecture.X64, _) => "yt-dlp.exe",
-        (true, _, Architecture.Arm64, _) => "yt-dlp_arm64.exe",
-        (_, true, Architecture.X64 or Architecture.Arm64, _) => "yt-dlp_macos",
-        (_, _, Architecture.X64, true) => "yt-dlp_musllinux",
-        (_, _, Architecture.Arm64, true) => "yt-dlp_musllinux_aarch64",
-        (_, _, Architecture.X64, _) => "yt-dlp_linux",
-        (_, _, Architecture.Arm64, _) => "yt-dlp_linux_aarch64",
+        (true, _, Architecture.X64, _) => JellyScoreConstants.DownloaderWindowsX64,
+        (true, _, Architecture.Arm64, _) => JellyScoreConstants.DownloaderWindowsArm64,
+        (_, true, Architecture.X64 or Architecture.Arm64, _) => JellyScoreConstants.DownloaderMacos,
+        (_, _, Architecture.X64, true) => JellyScoreConstants.DownloaderMuslX64,
+        (_, _, Architecture.Arm64, true) => JellyScoreConstants.DownloaderMuslArm64,
+        (_, _, Architecture.X64, _) => JellyScoreConstants.DownloaderLinuxX64,
+        (_, _, Architecture.Arm64, _) => JellyScoreConstants.DownloaderLinuxArm64,
         _ => throw new PlatformNotSupportedException("This plugin package has no yt-dlp binary for this server architecture.")
     };
 
-    public static bool DownloaderAvailable => File.Exists(Path.Combine(Path.GetDirectoryName(typeof(YouTube).Assembly.Location)!, "yt-dlp-version")) &&
-        File.Exists(Path.Combine(Path.GetDirectoryName(typeof(YouTube).Assembly.Location)!, "SHA2-256SUMS"));
+    public static bool DownloaderAvailable => File.Exists(Path.Combine(Path.GetDirectoryName(typeof(YouTube).Assembly.Location)!, JellyScoreConstants.DownloaderVersionFile)) &&
+        File.Exists(Path.Combine(Path.GetDirectoryName(typeof(YouTube).Assembly.Location)!, JellyScoreConstants.DownloaderChecksumsFile));
 
     private static async Task<string> Executable(CancellationToken ct)
     {
@@ -47,16 +47,16 @@ public sealed class YouTube
         {
             if (_downloaderPath is not null) return _downloaderPath;
             var directory = Path.GetDirectoryName(typeof(YouTube).Assembly.Location)!;
-            var version = (await File.ReadAllTextAsync(Path.Combine(directory, "yt-dlp-version"), ct)).Trim();
+            var version = (await File.ReadAllTextAsync(Path.Combine(directory, JellyScoreConstants.DownloaderVersionFile), ct)).Trim();
             var asset = DownloaderName(OperatingSystem.IsWindows(), OperatingSystem.IsMacOS(), RuntimeInformation.OSArchitecture,
                 RuntimeInformation.RuntimeIdentifier.Contains("musl", StringComparison.OrdinalIgnoreCase));
-            var checksum = File.ReadLines(Path.Combine(directory, "SHA2-256SUMS"))
+            var checksum = File.ReadLines(Path.Combine(directory, JellyScoreConstants.DownloaderChecksumsFile))
                 .Select(line => line.Split(' ', StringSplitOptions.RemoveEmptyEntries))
                 .FirstOrDefault(parts => parts.Length == 2 && parts[1] == asset)?[0];
             if (checksum is null || !Regex.IsMatch(version, "^[a-zA-Z0-9._-]+$") || !Regex.IsMatch(checksum, "^[a-fA-F0-9]{64}$"))
                 throw new SearchFailure("Plugin package has no valid yt-dlp release or checksum for this platform.");
             var path = Path.Combine(Plugin.Instance.DownloaderFolder, version, asset);
-            var url = new Uri($"https://github.com/yt-dlp/yt-dlp/releases/download/{version}/{asset}");
+            var url = new Uri($"{JellyScoreConstants.DownloaderReleaseUrl}/{version}/{asset}");
             _downloaderPath = await EnsureDownloader(path, checksum, token => DownloaderClient.GetStreamAsync(url, token), ct);
             DownloaderError = null;
             return _downloaderPath;
@@ -105,8 +105,9 @@ public sealed class YouTube
         foreach (var title in titles)
         {
             var query = work.Series ? $"{title} theme song" : $"{title} {work.Year} main theme soundtrack";
-            var flat = await Flat(query, 30, ct);
-            var shortlist = flat.Where(video => Matcher.Promising(work, video)).Skip(nextPage ? 8 : 0).Take(8);
+            var flat = await Flat(query, JellyScoreConstants.SearchResultCount, ct);
+            var shortlist = flat.Where(video => Matcher.Promising(work, video))
+                .Skip(nextPage ? JellyScoreConstants.SearchShortlistSize : 0).Take(JellyScoreConstants.SearchShortlistSize);
             foreach (var video in await Details(shortlist, ct)) videos[video.Id] = video;
         }
         return videos.Values.ToArray();
@@ -115,8 +116,8 @@ public sealed class YouTube
     public async Task<IReadOnlyList<Video>> SearchAlbumTrack(Work work, CancellationToken ct)
     {
         var query = $"{work.Title} {work.Year} soundtrack album";
-        var flat = await Flat(query, 20, ct);
-        var fullAlbum = flat.FirstOrDefault(video => video.Seconds > Matcher.MaxSeconds &&
+        var flat = await Flat(query, JellyScoreConstants.AlbumSearchResultCount, ct);
+        var fullAlbum = flat.FirstOrDefault(video => video.Seconds > JellyScoreConstants.MaximumThemeSeconds &&
             video.Title.Contains("album", StringComparison.OrdinalIgnoreCase) &&
             video.Title.Contains(work.Title, StringComparison.OrdinalIgnoreCase));
         if (fullAlbum is null) return [];
@@ -125,9 +126,10 @@ public sealed class YouTube
         var firstTrack = FirstTrack(album.Description);
         if (firstTrack is null) return [];
         var soundtrack = work.Series ? "TV soundtrack" : "Original Motion Picture Soundtrack";
-        var tracks = await Flat($"{firstTrack} {work.Title} {soundtrack}", 10, ct);
+        var tracks = await Flat($"{firstTrack} {work.Title} {soundtrack}", JellyScoreConstants.TrackSearchResultCount, ct);
         return await Details(tracks.Where(video => Matcher.Promising(work, video) ||
-            video.Seconds is > 0 and <= Matcher.MaxSeconds && video.Title.Contains(firstTrack, StringComparison.OrdinalIgnoreCase)).Take(4), ct);
+            video.Seconds is > 0 and <= JellyScoreConstants.MaximumThemeSeconds && video.Title.Contains(firstTrack, StringComparison.OrdinalIgnoreCase))
+            .Take(JellyScoreConstants.AlbumTrackShortlistSize), ct);
     }
 
     // ReSharper disable once MemberCanBePrivate.Global
@@ -139,7 +141,8 @@ public sealed class YouTube
 
     private static async Task<IReadOnlyList<Video>> Flat(string query, int count, CancellationToken ct)
     {
-        var output = await Tool(["--no-warnings", "--flat-playlist", "--dump-json", "--socket-timeout", "20", "--retries", "2", $"ytsearch{count}:" + query], ct);
+        var output = await Tool(["--no-warnings", "--flat-playlist", "--dump-json", "--socket-timeout", $"{JellyScoreConstants.DownloaderSocketTimeoutSeconds}",
+            "--retries", $"{JellyScoreConstants.DownloaderRetries}", $"ytsearch{count}:" + query], ct);
         var videos = new List<Video>();
         foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
         {
@@ -155,7 +158,7 @@ public sealed class YouTube
     {
         var shortlist = candidates.ToArray();
         var videos = new Video?[shortlist.Length];
-        await Parallel.ForEachAsync(Enumerable.Range(0, shortlist.Length), new ParallelOptions { MaxDegreeOfParallelism = 2, CancellationToken = ct }, async (index, token) =>
+        await Parallel.ForEachAsync(Enumerable.Range(0, shortlist.Length), new ParallelOptions { MaxDegreeOfParallelism = JellyScoreConstants.DetailConcurrency, CancellationToken = ct }, async (index, token) =>
         {
             try { videos[index] = await Recheck(shortlist[index].Id, token); }
             catch (SourceUnavailable) { }
@@ -178,18 +181,19 @@ public sealed class YouTube
 
     public static async Task Download(string id, string path, CancellationToken ct)
     {
-        for (var attempt = 0; attempt < 3; attempt++)
+        for (var attempt = 0; attempt < JellyScoreConstants.ToolAttempts; attempt++)
         {
             try
             {
-                await Audio.Run(await Executable(ct), ["--no-playlist", "--no-progress", "--no-part", "--no-continue", "--retries", "2", "--socket-timeout", "20",
-                    "-f", "bestaudio", "--max-filesize", "30M", "-o", path, "https://www.youtube.com/watch?v=" + id], ct);
+                await Audio.Run(await Executable(ct), ["--no-playlist", "--no-progress", "--no-part", "--no-continue", "--retries", $"{JellyScoreConstants.DownloaderRetries}",
+                    "--socket-timeout", $"{JellyScoreConstants.DownloaderSocketTimeoutSeconds}", "-f", "bestaudio", "--max-filesize", JellyScoreConstants.DownloaderMaximumFileSize,
+                    "-o", path, "https://www.youtube.com/watch?v=" + id], ct);
                 return;
             }
-            catch (IOException) when (attempt < 2)
+            catch (IOException) when (attempt < JellyScoreConstants.ToolAttempts - 1)
             {
                 if (File.Exists(path)) File.Delete(path);
-                await Task.Delay(TimeSpan.FromSeconds(2 << attempt), ct);
+                await Task.Delay(TimeSpan.FromSeconds(JellyScoreConstants.DownloadRetryBaseSeconds << attempt), ct);
             }
             catch (IOException e) { throw new DownloadFailure(e.Message); }
         }
@@ -211,13 +215,14 @@ public sealed class YouTube
 
     private static async Task<string> Tool(string[] args, CancellationToken ct)
     {
-        for (var attempt = 0; attempt < 3; attempt++)
+        for (var attempt = 0; attempt < JellyScoreConstants.ToolAttempts; attempt++)
         {
             try { return await Audio.Run(await Executable(ct), args, ct); }
             catch (IOException e) when (e.Message.Contains("This video is not available", StringComparison.OrdinalIgnoreCase) ||
                 e.Message.Contains("Video unavailable", StringComparison.OrdinalIgnoreCase))
             { throw new SourceUnavailable(e.Message); }
-            catch (IOException) when (attempt < 2) { await Task.Delay(TimeSpan.FromSeconds(2 << attempt), ct); }
+            catch (IOException) when (attempt < JellyScoreConstants.ToolAttempts - 1)
+            { await Task.Delay(TimeSpan.FromSeconds(JellyScoreConstants.DownloadRetryBaseSeconds << attempt), ct); }
         }
         throw new SearchFailure("Bundled yt-dlp failed. Check network access and update the plugin package.");
     }
@@ -225,9 +230,6 @@ public sealed class YouTube
 
 public static partial class Matcher
 {
-    private const int MinSeconds = 10;
-    internal const int MaxSeconds = 480;
-
     [GeneratedRegex(@"\b(cover|remix|fan.?edit|extended|reaction|trailer|review|full album|compilation|livestream|live stream|karaoke|piano cover|tutorials?|how to play|game|parody|tribute|ranked|top\s?10)\b", RegexOptions.IgnoreCase)]
     private static partial Regex Reject();
     [GeneratedRegex(@"\b(?:s\d{1,2}\s*e\d{1,3}|\d{1,2}x\d{1,3}|season\s+\d+\s+episode\s+\d+)\b", RegexOptions.IgnoreCase)]
@@ -290,7 +292,7 @@ public static partial class Matcher
     }
 
     public static bool Promising(Work work, Video video) =>
-        (video.Seconds is not { } seconds || seconds is >= MinSeconds and <= MaxSeconds) &&
+        (video.Seconds is not { } seconds || seconds is >= JellyScoreConstants.MinimumThemeSeconds and <= JellyScoreConstants.MaximumThemeSeconds) &&
         !Reject().IsMatch(video.Title) && !EpisodeClip(video.Title) &&
         (!Sequel().IsMatch(video.Title) || Sequel().IsMatch(work.Title)) &&
         Theme().IsMatch(video.Title) &&
@@ -304,37 +306,39 @@ public static partial class Matcher
         var score = 0;
         void Add(int points, string source) { score += points; evidence.Add($"{source} {points:+#;-#;0}"); }
 
-        if (new[] { work.Title, work.OriginalTitle }.Where(s => !string.IsNullOrWhiteSpace(s)).Any(s => Contains(video.Title, s!))) Add(30, "Work in title");
+        if (new[] { work.Title, work.OriginalTitle }.Where(s => !string.IsNullOrWhiteSpace(s)).Any(s => Contains(video.Title, s!))) Add(JellyScoreConstants.WorkTitlePoints, "Work in title");
         else
         {
-            var words = Normal(work.Title).Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(w => w.Length > 3);
+            var words = Normal(work.Title).Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(w => w.Length >= JellyScoreConstants.PartialTitleWordMinimumLength);
             var matchingWords = words.Count(w => Contains(video.Title, w));
-            if (matchingWords > 0) Add(Math.Min(16, 8 * matchingWords), "Partial title");
+            if (matchingWords > 0) Add(Math.Min(JellyScoreConstants.PartialTitleMaximumPoints,
+                JellyScoreConstants.PartialTitleWordPoints * matchingWords), "Partial title");
         }
         if (work.Year is { } year)
         {
-            if (Contains(identity, year.ToString(CultureInfo.InvariantCulture))) Add(30, "Edition year in title or album");
-            else if (video.ReleaseYear == year || linkedYear == year) Add(20, "Edition year in metadata");
+            if (Contains(identity, year.ToString(CultureInfo.InvariantCulture))) Add(JellyScoreConstants.TitleYearPoints, "Edition year in title or album");
+            else if (video.ReleaseYear == year || linkedYear == year) Add(JellyScoreConstants.MetadataYearPoints, "Edition year in metadata");
         }
-        if (work.Series ? SeriesEdition().IsMatch(identity) : FilmEdition().IsMatch(identity)) Add(20, "Matching film/TV edition");
-        if (Contains(title, "main theme") || Contains(title, "main title")) Add(20, "Main theme or title");
-        else if (Contains(title, "theme")) Add(15, "Theme");
-        if (!Closing().IsMatch(title) && SeriesOpening().IsMatch(title)) Add(12, "Opening or intro");
-        if (Contains(title, "soundtrack") || Contains(title, "ost") || Contains(title, "score")) Add(10, "Soundtrack label");
-        if (Contains(title, "official")) Add(5, "Official label");
-        if (soundtrackMatch) { Add(40, "Matching soundtrack track"); if (hasArtist) Add(15, "Identified artist"); }
-        if (video.Seconds is >= 30 and <= 360) Add(10, "Typical music duration");
-        else if (video.Seconds is < 30 && SeriesOpening().IsMatch(title)) Add(10, "Short opening");
-        else if (video.Seconds is < 30) Add(-10, "Very short recording");
-        else Add(5, "Long recording");
-        if (new[] { "music", "records", "soundtrack", "score", "film", "cinema" }.Any(s => video.Channel.Contains(s, StringComparison.OrdinalIgnoreCase))) Add(3, "Music channel");
-        if (SeriesCollection().IsMatch(title)) Add(-30, "Multi-season collection");
-        else if (title.Contains("every ", StringComparison.OrdinalIgnoreCase) || title.Contains("all ", StringComparison.OrdinalIgnoreCase) && Contains(title, "theme")) Add(-20, "Collection video");
+        if (work.Series ? SeriesEdition().IsMatch(identity) : FilmEdition().IsMatch(identity)) Add(JellyScoreConstants.MatchingEditionPoints, "Matching film/TV edition");
+        if (Contains(title, "main theme") || Contains(title, "main title")) Add(JellyScoreConstants.MainThemePoints, "Main theme or title");
+        else if (Contains(title, "theme")) Add(JellyScoreConstants.ThemePoints, "Theme");
+        if (!Closing().IsMatch(title) && SeriesOpening().IsMatch(title)) Add(JellyScoreConstants.OpeningPoints, "Opening or intro");
+        if (Contains(title, "soundtrack") || Contains(title, "ost") || Contains(title, "score")) Add(JellyScoreConstants.SoundtrackLabelPoints, "Soundtrack label");
+        if (Contains(title, "official")) Add(JellyScoreConstants.OfficialLabelPoints, "Official label");
+        if (soundtrackMatch) { Add(JellyScoreConstants.SoundtrackTrackPoints, "Matching soundtrack track"); if (hasArtist) Add(JellyScoreConstants.ArtistPoints, "Identified artist"); }
+        if (video.Seconds is >= JellyScoreConstants.TypicalMinimumSeconds and <= JellyScoreConstants.TypicalMaximumSeconds)
+            Add(JellyScoreConstants.TypicalDurationPoints, "Typical music duration");
+        else if (video.Seconds < JellyScoreConstants.TypicalMinimumSeconds && SeriesOpening().IsMatch(title)) Add(JellyScoreConstants.ShortOpeningPoints, "Short opening");
+        else if (video.Seconds < JellyScoreConstants.TypicalMinimumSeconds) Add(JellyScoreConstants.ShortRecordingPenalty, "Very short recording");
+        else Add(JellyScoreConstants.LongRecordingPoints, "Long recording");
+        if (new[] { "music", "records", "soundtrack", "score", "film", "cinema" }.Any(s => video.Channel.Contains(s, StringComparison.OrdinalIgnoreCase))) Add(JellyScoreConstants.MusicChannelPoints, "Music channel");
+        if (SeriesCollection().IsMatch(title)) Add(JellyScoreConstants.MultiSeasonCollectionPenalty, "Multi-season collection");
+        else if (title.Contains("every ", StringComparison.OrdinalIgnoreCase) || title.Contains("all ", StringComparison.OrdinalIgnoreCase) && Contains(title, "theme")) Add(JellyScoreConstants.CollectionPenalty, "Collection video");
         return new Choice(video, recording, score, string.Join("; ", evidence));
     }
 
     // ReSharper disable once MemberCanBePrivate.Global
-    public static int MatchStrength(int score) => Math.Clamp(score, 0, 100);
+    public static int MatchStrength(int score) => Math.Clamp(score, JellyScoreConstants.MinimumMatchStrength, JellyScoreConstants.MaximumMatchStrength);
 
     // ReSharper disable once MemberCanBePrivate.Global
     public static Choice? Evaluate(Work work, Video video) => Evaluate(work, video, out _);
@@ -343,9 +347,9 @@ public static partial class Matcher
     public static Choice? Evaluate(Work work, Video video, out string reason)
     {
         reason = "";
-        if (video.Seconds is not { } length || length is < MinSeconds or > MaxSeconds)
+        if (video.Seconds is not { } length || length is < JellyScoreConstants.MinimumThemeSeconds or > JellyScoreConstants.MaximumThemeSeconds)
         { reason = "Duration is missing or outside the theme range"; return null; }
-        if (work.Year is { } workYear && video.UploadDate is { Year: var uploadYear } && uploadYear < workYear - 1)
+        if (work.Year is { } workYear && video.UploadDate is { Year: var uploadYear } && uploadYear < workYear - JellyScoreConstants.EarlyUploadYears)
         { reason = "Upload predates this work"; return null; }
         var lines = video.Description.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         var trackIndex = Array.FindIndex(lines, s => s.Contains('·'));
@@ -369,7 +373,8 @@ public static partial class Matcher
         if (work.Series ? FilmEdition().IsMatch(identityText) : SeriesEdition().IsMatch(identityText))
         { reason = "Soundtrack belongs to a different film or series edition"; return null; }
         // Unknown edition/year is deliberately insufficient for ambiguous remakes.
-        if (work.Year is not null && video.ReleaseYear is null && linkedYear is null && !Years().IsMatch(identityText) && Normal(work.Title).Split(' ').Length <= 3 &&
+        if (work.Year is not null && video.ReleaseYear is null && linkedYear is null && !Years().IsMatch(identityText) &&
+            Normal(work.Title).Split(' ').Length <= JellyScoreConstants.AmbiguousTitleWordLimit &&
             !(work.Series && Contains(title, work.Title)) && !(Sequel().IsMatch(work.Title) && Contains(title, work.Title)))
         { reason = "Release year missing for an ambiguous title"; return null; }
         var albumMatches = Contains(album, work.Title) || work.OriginalTitle is not null && Contains(album, work.OriginalTitle);
