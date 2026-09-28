@@ -12,6 +12,7 @@ public sealed class ThemeController(ThemeService themes, ThemeScan scan, ITaskMa
 {
     [HttpGet("settings")]
     public object Settings() => new { Plugin.Instance.Configuration.Enabled, Libraries = Plugin.Instance.Configuration.SelectedLibraries(library),
+        MinimumMatchStrength = Plugin.Instance.Configuration.EffectiveMinimumMatchStrength,
         YouTube.DownloaderAvailable, YouTube.DownloaderError,
         LibrariesAvailable = library.GetVirtualFolders().Select(f => new { f.Name, f.ItemId }) };
 
@@ -29,14 +30,16 @@ public sealed class ThemeController(ThemeService themes, ThemeScan scan, ITaskMa
         return stream is null ? NotFound() : File(stream, "application/json");
     }
 
-    public sealed record SettingsRequest(bool Enabled, Guid[]? Libraries);
+    public sealed record SettingsRequest(bool Enabled, Guid[]? Libraries, int? MinimumMatchStrength);
 
     [HttpPost("settings")]
     public IActionResult Save([FromBody] SettingsRequest request)
     {
+        if (request.MinimumMatchStrength is < 0 or > 100) return BadRequest();
         var config = Plugin.Instance.Configuration;
         config.Enabled = request.Enabled;
         config.Libraries = request.Libraries ?? [];
+        if (request.MinimumMatchStrength is { } minimumMatchStrength) config.MinimumMatchStrength = minimumMatchStrength;
         Plugin.Instance.UpdateConfiguration(config);
         return NoContent();
     }

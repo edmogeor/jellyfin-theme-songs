@@ -1,4 +1,8 @@
 {
+  "themeSettingsTitle": "テーマ曲の設定",
+  "minimumMatchStrength": "一致度の最低値 (0–100)",
+  "matchStrengthHelp": "値が高いほど判定が厳しくなります。0 は現在の動作を維持します。",
+  "reasonBelowStrength": "結果が設定した一致度の最低値を下回っています",
   "description": "映画や番組のテーマ曲を自動的に検索します。",
   "libraries": "ライブラリ",
   "automatic": "新しいアイテムとライブラリのスキャンを自動的に処理する",

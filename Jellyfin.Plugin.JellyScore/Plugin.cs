@@ -21,6 +21,12 @@ public sealed class Plugin : BasePlugin<Settings>, IHasWebPages
     {
         DownloaderFolder = Path.Combine(paths.PluginConfigurationsPath, "jellyscore-yt-dlp");
         Instance = this;
+        if (!File.Exists(ConfigurationFilePath))
+        {
+            var config = Configuration;
+            config.MinimumMatchStrength = 50;
+            UpdateConfiguration(config);
+        }
     }
 
     public IEnumerable<PluginPageInfo> GetPages() => [new()
@@ -37,6 +43,9 @@ public sealed class Settings : BasePluginConfiguration
 {
     public bool Enabled { get; set; } = true;
     public Guid[]? Libraries { get; set; }
+    public int? MinimumMatchStrength { get; set; }
+
+    public int EffectiveMinimumMatchStrength => Math.Clamp(MinimumMatchStrength.GetValueOrDefault(), 0, 100);
 
     public Guid[] SelectedLibraries(ILibraryManager library) => Libraries ?? library.GetVirtualFolders().Select(f => Guid.Parse(f.ItemId)).ToArray();
 }

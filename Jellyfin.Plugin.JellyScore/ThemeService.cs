@@ -143,6 +143,7 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
             if (OtherTheme(item, folder, existing?.Path)) return new("Already themed");
             if (string.IsNullOrWhiteSpace(item.Name)) throw new InvalidOperationException("Item title is not ready; retry after metadata refresh.");
             var work = new Work(item.Name, item.OriginalTitle, item.ProductionYear, item is Series);
+            var minimumMatchStrength = Plugin.Instance.Configuration.EffectiveMinimumMatchStrength;
             var excludedIds = store.Read(s => new HashSet<string>(s.ExcludedVideos.GetValueOrDefault(id) ?? []));
             var excludedRecordings = store.Read(s => new HashSet<string>(s.ExcludedRecordings.GetValueOrDefault(id) ?? []));
             if (replacement)
@@ -158,20 +159,20 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
                 });
             }
             var videos = await youtube.Search(work, ct);
-            var choice = Matcher.Select(work, videos, excludedIds, excludedRecordings);
+            var choice = Matcher.Select(work, videos, excludedIds, excludedRecordings, minimumMatchStrength);
             if (choice is null)
             {
                 videos = videos.Concat(await youtube.Search(work, ct, nextPage: true)).DistinctBy(video => video.Id).ToArray();
-                choice = Matcher.Select(work, videos, excludedIds, excludedRecordings);
+                choice = Matcher.Select(work, videos, excludedIds, excludedRecordings, minimumMatchStrength);
             }
             if (choice is null)
             {
                 videos = videos.Concat(await youtube.SearchAlbumTrack(work, ct)).DistinctBy(video => video.Id).ToArray();
-                choice = Matcher.Select(work, videos, excludedIds, excludedRecordings);
+                choice = Matcher.Select(work, videos, excludedIds, excludedRecordings, minimumMatchStrength);
             }
             if (choice is null)
             {
-                var reason = Matcher.RejectionReason(work, videos, excludedIds, excludedRecordings, out var reasonCode);
+                var reason = Matcher.RejectionReason(work, videos, excludedIds, excludedRecordings, out var reasonCode, minimumMatchStrength);
                 var excluded = reason == "Only previously used recordings were found";
                 var result = replacement ? "No replacement found" : excluded ? "Previously used recording excluded" : "No match found";
                 store.Change(s => s.Outcomes[id] = excluded ? result : result + ": " + reason);
@@ -187,7 +188,7 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
                     catch (DownloadFailure) when (sourceAttempt == 0)
                     {
                         excludedIds.Add(choice.Video.Id);
-                        choice = Matcher.Select(work, videos, excludedIds, excludedRecordings);
+                        choice = Matcher.Select(work, videos, excludedIds, excludedRecordings, minimumMatchStrength);
                         if (choice is null) throw;
                         continue;
                     }

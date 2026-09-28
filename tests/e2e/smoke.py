@@ -39,13 +39,17 @@ def field(data, name):
     return data.get(name, data.get(name[0].upper() + name[1:]))
 
 
-def assert_settings(token, enabled, libraries):
+def assert_settings(token, enabled, libraries, minimum=50):
     for path in ("/ThemeSongs/settings", f"/Plugins/{PLUGIN}/Configuration"):
         status, settings = request("GET", path, token=token)
         assert status == 200, f"read settings {path}: {status}"
         assert field(settings, "enabled") is enabled, f"saved enabled in {path}: {settings}"
         assert [uuid.UUID(str(value)) for value in field(settings, "libraries")] == [uuid.UUID(value) for value in libraries], (
             f"saved libraries in {path}: {settings}"
+        )
+        strength = field(settings, "minimumMatchStrength")
+        assert (strength if strength is not None else settings.get("EffectiveMinimumMatchStrength")) == minimum, (
+            f"saved minimum match strength in {path}: {settings}"
         )
 
 
@@ -116,9 +120,15 @@ status, config = request("GET", f"/Plugins/{PLUGIN}/Configuration", token=token)
 assert status == 200, f"plugin not loaded: {status}"
 assert config["Enabled"] is True, "automatic processing must default to on"
 assert config.get("Libraries") is None, "new installs must default to all libraries"
+assert config["MinimumMatchStrength"] == 50, "new installs default to match strength 50"
 status, settings = request("GET", "/ThemeSongs/settings", token=token)
 assert status == 200, f"admin settings: {status}"
 assert settings.get("downloaderAvailable", settings.get("DownloaderAvailable")) is True, "downloader release metadata missing"
+assert field(settings, "minimumMatchStrength") == 50, "admin settings expose the effective match strength"
+status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": [], "minimumMatchStrength": -1}, token)
+assert status == 400, f"negative match strength must be rejected: {status}"
+status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": [], "minimumMatchStrength": 101}, token)
+assert status == 400, f"out-of-range match strength must be rejected: {status}"
 status, strings = request("GET", "/ThemeSongs/strings/en-us", token=token)
 assert status == 200 and strings["scanLibraries"] == "Scan libraries", f"English translations: {status} {strings}"
 english_strings = strings
@@ -136,6 +146,11 @@ selected = ["00000000-0000-0000-0000-000000000001"]
 status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": selected}, token)
 assert status == 204, f"enable automatic processing: {status}"
 assert_settings(token, True, selected)
+status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": selected, "minimumMatchStrength": 75}, token)
+assert status == 204, f"save a custom match strength: {status}"
+assert_settings(token, True, selected, 75)
+status, _ = request("POST", f"/Plugins/{PLUGIN}/Configuration", {"Enabled": True, "Libraries": selected, "MinimumMatchStrength": None}, token)
+assert status == 204, f"simulate an existing config without the new setting: {status}"
 subprocess.run(["docker", "compose", "-f", "tests/e2e/compose.yaml", "restart", "jellyfin"], check=True)
 for _ in range(60):
     status, _ = request("GET", "/ThemeSongs/settings", token=token)
@@ -143,6 +158,9 @@ for _ in range(60):
         break
     time.sleep(2)
 assert status == 200, f"plugin did not restart: {status}"
+assert_settings(token, True, selected, 0)
+status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": selected, "minimumMatchStrength": 50}, token)
+assert status == 204, f"restore new-install match strength for live checks: {status}"
 assert_settings(token, True, selected)
 status, before = request("GET", "/ThemeSongs/scan", token=token)
 assert status == 200, f"read scan status: {status}"
@@ -180,7 +198,7 @@ print("Waiting for movie and series indexing...", flush=True)
 status, folders = request("GET", "/Library/VirtualFolders", token=token)
 assert status == 200, f"list libraries: {status}"
 library_ids = [next(folder["ItemId"] for folder in folders if folder["Name"] == name) for name in ("Films", "Shows")]
-status, _ = request("POST", f"/Plugins/{PLUGIN}/Configuration", {"Enabled": False, "Libraries": None}, token)
+status, _ = request("POST", f"/Plugins/{PLUGIN}/Configuration", {"Enabled": False, "Libraries": None, "MinimumMatchStrength": 50}, token)
 assert status == 204, f"reset library selection to default: {status}"
 status, settings = request("GET", "/ThemeSongs/settings", token=token)
 assert status == 200 and {uuid.UUID(str(value)) for value in field(settings, "libraries")} == {

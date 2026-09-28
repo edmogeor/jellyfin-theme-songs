@@ -32,6 +32,9 @@
     #themeSongsPage .verticalSection > .fieldDescription {
       margin: 0 0 1.25rem;
     }
+    #themeSongsPage .themeLibraryHeading {
+      margin: 0 0 0.75rem;
+    }
     #themeSongsPage .checkboxListContainer {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
@@ -45,6 +48,14 @@
     #themeSongsPage .themeAutoOption {
       border-top: 1px solid var(--jf-palette-divider);
       padding-top: 1.25rem;
+    }
+    #themeSongsPage .themeStrengthOption {
+      border-top: 1px solid var(--jf-palette-divider);
+      padding-top: 1.25rem;
+      max-width: 30rem;
+    }
+    #themeSongsPage #themeStrength {
+      width: 7rem;
     }
     #themeSongsPage .inputContainer {
       margin-bottom: 0.75rem;
@@ -378,7 +389,10 @@
       </div>
     </div>
     <form id="themeSettings" class="verticalSection">
-      <h3 class="sectionTitle" data-i18n="libraries">Libraries</h3>
+      <h3 class="sectionTitle" data-i18n="themeSettingsTitle">
+        Theme settings
+      </h3>
+      <h4 class="themeLibraryHeading" data-i18n="libraries">Libraries</h4>
       <div id="themeLibraries" class="checkboxListContainer"></div>
       <div class="checkboxContainer themeAutoOption">
         <label class="emby-checkbox-label"
@@ -387,6 +401,32 @@
             >Automatically process new items and library scans</span
           ></label
         >
+      </div>
+      <div class="inputContainer themeStrengthOption">
+        <label
+          for="themeStrength"
+          class="inputLabel"
+          data-i18n="minimumMatchStrength"
+          >Minimum match strength (0–100)</label
+        >
+        <input
+          id="themeStrength"
+          name="minimumMatchStrength"
+          type="number"
+          is="emby-input"
+          min="0"
+          max="100"
+          step="1"
+          required
+          aria-describedby="themeStrengthHelp"
+        />
+        <div
+          id="themeStrengthHelp"
+          class="fieldDescription"
+          data-i18n="matchStrengthHelp"
+        >
+          Higher means stricter matching. 0 keeps current behavior.
+        </div>
       </div>
       <button
         is="emby-button"
@@ -558,6 +598,7 @@
       const settingsValue = () =>
         JSON.stringify([
           $("#themeSettings").elements.enabled.checked,
+          $("#themeSettings").elements.minimumMatchStrength.value,
           [
             ...$("#themeSettings").querySelectorAll(
               "input[name=library]:checked",
@@ -694,6 +735,7 @@
         $("#themeDownloaderDetails").textContent = data.DownloaderError || "";
         updateRowActions();
         form.elements.enabled.checked = data.Enabled;
+        form.elements.minimumMatchStrength.value = data.MinimumMatchStrength;
         $("#themeLibraries").replaceChildren(
           ...data.LibrariesAvailable.map((lib) => {
             const label = document.createElement("label");
@@ -969,11 +1011,14 @@
         clearInterval(page.timer);
       });
       $("#themeSettings").addEventListener("change", updateSave);
+      $("#themeStrength").addEventListener("input", updateSave);
       $("#themeSettings").onsubmit = async (event) => {
         event.preventDefault();
         const form = event.currentTarget;
         if (settingsValue() === savedSettings) return;
         const enabled = form.elements.enabled.checked;
+        const minimumMatchStrength =
+          form.elements.minimumMatchStrength.valueAsNumber;
         const libraries = [
           ...form.querySelectorAll("input[name=library]:checked"),
         ].map((x) => x.value);
@@ -982,7 +1027,7 @@
         try {
           await request("settings", {
             method: "POST",
-            body: JSON.stringify({ enabled, libraries }),
+            body: JSON.stringify({ enabled, libraries, minimumMatchStrength }),
           });
           savedSettings = submitted;
           toast(t("settingsSaved"));

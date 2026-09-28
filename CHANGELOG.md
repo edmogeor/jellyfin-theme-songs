@@ -1,3 +1,10 @@
+## [0.1.12.0]
+
+### Added
+
+- Set a minimum match strength from 0 to 100 in the admin page. New installations default to 50; existing installations retain their previous matching behavior at 0 until changed.
+- Report when search results fall below the chosen minimum in all supported admin languages.
+
 ## [0.1.11.0]
 
 ### Improved

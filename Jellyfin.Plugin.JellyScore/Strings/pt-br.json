@@ -1,4 +1,8 @@
 {
+  "themeSettingsTitle": "Configurações da música tema",
+  "minimumMatchStrength": "Força mínima da correspondência (0–100)",
+  "matchStrengthHelp": "Um valor maior exige correspondência mais rigorosa. 0 mantém o comportamento atual.",
+  "reasonBelowStrength": "Os resultados estão abaixo da força mínima da correspondência",
   "description": "Encontra automaticamente músicas-tema para seus filmes e séries.",
   "libraries": "Bibliotecas",
   "automatic": "Processar automaticamente novos itens e varreduras das bibliotecas",

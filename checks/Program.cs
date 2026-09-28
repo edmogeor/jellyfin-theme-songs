@@ -103,6 +103,37 @@ var office = new Work("The Office (US)", null, 2005, true);
 var supernatural = new Work("Supernatural", null, 2005, true);
 var deathScene = video("5EcsBgxXDqc", "Death's Intro... Supernatural S5E21", "", 120);
 var supernaturalOpening = video("bbbbbbbbbbb", "Supernatural S5E21 Opening Theme", "", 20);
+var titleCardMontage = new Video("wg0yCihdKio", "Supernatural Seasons 1-15 Main Title Cards", "Property of Warner Bros and the CW\nI don't own anything", "Tye Judy", 87,
+    UploadDate: new DateOnly(2019, 10, 11));
+check(Matcher.MatchStrength(-10) == 0 && Matcher.MatchStrength(150) == 100,
+    "displayed match strength stays within 0-100");
+check(Matcher.MatchStrength(Matcher.Evaluate(supernatural, titleCardMontage)!.Score) == 42,
+    "multi-season collection has a bounded match strength of 42");
+check(Matcher.Select(supernatural, [titleCardMontage], new HashSet<string>(), new HashSet<string>(), 50) is null,
+    "a higher minimum skips the weak collection even when it is the only source");
+Matcher.RejectionReason(supernatural, [titleCardMontage], new HashSet<string>(), new HashSet<string>(), out var strengthCode, 50);
+check(strengthCode == "reasonBelowStrength", "below-minimum results have their own admin reason");
+var waywardSon = new Video("DJcX6Tpv9RI", "Carry on Wayward Son - Kansas (Supernatural Main Theme)",
+    "Carry On Wayward Son by Kansas, officially released in December 1976, and now the main theme of TV-show Supernatural", "Anna Lovén", 321,
+    UploadDate: new DateOnly(2014, 11, 27));
+var genericSupernaturalTheme = new Video("FtYRMGnj-_A", "Supernatural Theme Song With Lyrics", "Supernatural Theme Song With Lyrics", "Theme Lyric", 316,
+    UploadDate: new DateOnly(2012, 6, 16));
+check(Matcher.Promising(supernatural, titleCardMontage) && Matcher.Evaluate(supernatural, titleCardMontage) is { Score: > 0 },
+    "multi-season title-card montages remain eligible as a fallback");
+check(Matcher.Select(supernatural, [titleCardMontage], new HashSet<string>(), new HashSet<string>())?.Video.Id == titleCardMontage.Id,
+    "the title-card collection can still be selected when it is the only candidate");
+check(Matcher.Evaluate(supernatural, video("ccccccccccc", "Supernatural Season 15 Main Title", "", 20)) is not null,
+    "one season's short main title is not mistaken for a compilation");
+check(Matcher.Evaluate(supernatural, waywardSon) is not null,
+    "named music explicitly identified as the TV show's theme remains eligible");
+check(Matcher.Evaluate(supernatural, waywardSon with { Description = "Carry On Wayward Son by Kansas" }) is null,
+    "a named recording still needs evidence that it belongs to the series");
+check(Matcher.Select(supernatural, [titleCardMontage, genericSupernaturalTheme, waywardSon], new HashSet<string>(), new HashSet<string>())?.Video.Id == waywardSon.Id,
+    "named series song beats a title-card montage and generic theme upload");
+check(Matcher.Select(supernatural, [titleCardMontage, genericSupernaturalTheme, waywardSon], new HashSet<string>(), new HashSet<string>(), 60)?.Video.Id == waywardSon.Id,
+    "thresholds filter before ranking series themes");
+check(Matcher.Select(supernatural, [titleCardMontage, genericSupernaturalTheme], new HashSet<string>(), new HashSet<string>())?.Video.Id == genericSupernaturalTheme.Id,
+    "a standalone theme upload beats a multi-season title-card collection");
 check(!Matcher.Promising(supernatural, deathScene) && Matcher.Evaluate(supernatural, deathScene) is null,
     "episode character intro is neither shortlisted nor eligible as the series theme");
 check(Matcher.Promising(supernatural, supernaturalOpening) && Matcher.Evaluate(supernatural, supernaturalOpening) is not null,
@@ -176,6 +207,9 @@ check(Matcher.Evaluate(supernatural, explicitTheme) is not null, "a plain series
 check(Matcher.Promising(vampire, vampireOpening), "the short 2022 opening reaches full metadata evaluation");
 check(Matcher.Select(vampire, [vampireSoundtrack, vampireOpening], new HashSet<string>(), new HashSet<string>())?.Video.Id == vampireOpening.Id,
     "series opening wins over a soundtrack track");
+var reliableSoundtrack = vampireSoundtrack with { Album = "Interview with the Vampire (Original Television Series Soundtrack)", Track = "Come to Me", Artist = "Daniel Hart", ReleaseYear = 2022 };
+check(Matcher.Select(vampire, [vampireOpening, reliableSoundtrack], new HashSet<string>(), new HashSet<string>(), 90)?.Video.Id == reliableSoundtrack.Id,
+    "a strict minimum can fall back to a verified soundtrack when a short opening is below the threshold");
 check(Matcher.Select(vampire, [vampireSoundtrack], new HashSet<string>(), new HashSet<string>())?.Video.Id == vampireSoundtrack.Id,
     "soundtrack track remains a fallback when no opening is found");
 check(Matcher.Evaluate(vampire, video("7jLOWfP3Lmc", "Interview with the Vampire - Opening",

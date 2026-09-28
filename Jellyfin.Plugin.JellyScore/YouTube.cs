@@ -236,6 +236,8 @@ public static partial class Matcher
     private static partial Regex IntroScene();
     [GeneratedRegex(@"\b[\p{L}]+['’]s\s+intro(?:duction)?\b", RegexOptions.IgnoreCase)]
     private static partial Regex CharacterIntro();
+    [GeneratedRegex(@"\bseasons?\s+\d+\s*(?:[-–—]|to|through|&|and)\s*\d+\b|\b(?:all|every)\s+(?:\w+\s+){0,3}(?:seasons?|title cards?|openings?|intros?)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex SeriesCollection();
     [GeneratedRegex(@"\b(part two|part 2|sequel)\b", RegexOptions.IgnoreCase)]
     private static partial Regex Sequel();
     [GeneratedRegex(@"\b(opening|theme|main title|title sequence|credits|end title|intro|soundtrack|score|suite|overture|ost)\b", RegexOptions.IgnoreCase)]
@@ -269,6 +271,13 @@ public static partial class Matcher
         return remainder.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length >= 3;
     }
 
+    private static bool LinkedSeriesTheme(Work work, string description)
+    {
+        var text = Normal(description);
+        return new[] { work.Title, work.OriginalTitle }.Where(s => !string.IsNullOrWhiteSpace(s)).Any(title =>
+            Regex.IsMatch(text, $@"\b(?:main )?theme (?:of|for) (?:the )?(?:tv show|tv series|television series) {Regex.Escape(Normal(title!))}\b"));
+    }
+
     private static int? LinkedYear(Work work, string description)
     {
         var text = Normal(description);
@@ -282,7 +291,8 @@ public static partial class Matcher
 
     public static bool Promising(Work work, Video video) =>
         (video.Seconds is not { } seconds || seconds is >= MinSeconds and <= MaxSeconds) &&
-        !Reject().IsMatch(video.Title) && !EpisodeClip(video.Title) && (!Sequel().IsMatch(video.Title) || Sequel().IsMatch(work.Title)) &&
+        !Reject().IsMatch(video.Title) && !EpisodeClip(video.Title) &&
+        (!Sequel().IsMatch(video.Title) || Sequel().IsMatch(work.Title)) &&
         Theme().IsMatch(video.Title) &&
         (Contains(video.Title, work.Title) || work.OriginalTitle is not null && Contains(video.Title, work.OriginalTitle) || MainTheme().IsMatch(video.Title));
 
@@ -318,9 +328,13 @@ public static partial class Matcher
         else if (video.Seconds is < 30) Add(-10, "Very short recording");
         else Add(5, "Long recording");
         if (new[] { "music", "records", "soundtrack", "score", "film", "cinema" }.Any(s => video.Channel.Contains(s, StringComparison.OrdinalIgnoreCase))) Add(3, "Music channel");
-        if (title.Contains("every ", StringComparison.OrdinalIgnoreCase) || title.Contains("all ", StringComparison.OrdinalIgnoreCase) && Contains(title, "theme")) Add(-20, "Collection video");
+        if (SeriesCollection().IsMatch(title)) Add(-30, "Multi-season collection");
+        else if (title.Contains("every ", StringComparison.OrdinalIgnoreCase) || title.Contains("all ", StringComparison.OrdinalIgnoreCase) && Contains(title, "theme")) Add(-20, "Collection video");
         return new Choice(video, recording, score, string.Join("; ", evidence));
     }
+
+    // ReSharper disable once MemberCanBePrivate.Global
+    public static int MatchStrength(int score) => Math.Clamp(score, 0, 100);
 
     // ReSharper disable once MemberCanBePrivate.Global
     public static Choice? Evaluate(Work work, Video video) => Evaluate(work, video, out _);
@@ -364,7 +378,8 @@ public static partial class Matcher
         var artist = video.Artist ?? (parts.Length >= 2 ? parts[1] : null);
         var soundtrackTrack = albumMatches && track is not null && (Contains(title, track) || Contains(track, title));
         if (!soundtrackTrack && OtherNamedTheme(work, video) && !(albumMatches && SeriesEdition().IsMatch(album)) &&
-            !(work.Year is { } seriesYear && linkedYear == seriesYear && SeriesEdition().IsMatch(video.Description)))
+            !(work.Year is { } seriesYear && linkedYear == seriesYear && SeriesEdition().IsMatch(video.Description)) &&
+            !LinkedSeriesTheme(work, video.Description))
         { reason = "Title names a different theme"; return null; }
         if (!Theme().IsMatch(title) && !soundtrackTrack)
         { reason = "Neither the title nor a matching soundtrack identifies this as music"; return null; }
@@ -379,7 +394,7 @@ public static partial class Matcher
     public static string RejectionReason(Work work, IEnumerable<Video> videos, IReadOnlySet<string> excludedVideos, IReadOnlySet<string> excludedRecordings) =>
         RejectionReason(work, videos, excludedVideos, excludedRecordings, out _);
 
-    public static string RejectionReason(Work work, IEnumerable<Video> videos, IReadOnlySet<string> excludedVideos, IReadOnlySet<string> excludedRecordings, out string code)
+    public static string RejectionReason(Work work, IEnumerable<Video> videos, IReadOnlySet<string> excludedVideos, IReadOnlySet<string> excludedRecordings, out string code, int minimumMatchStrength = 0)
     {
         code = "reasonNoMatch";
         var reasons = new List<string>();
@@ -396,6 +411,12 @@ public static partial class Matcher
             {
                 code = "reasonPreviouslyUsed";
                 return "Only previously used recordings were found";
+            }
+            if (eligible.Where(c => !excludedVideos.Contains(c.Video.Id) && !excludedRecordings.Contains(c.Recording))
+                .All(c => MatchStrength(c.Score) < minimumMatchStrength))
+            {
+                code = "reasonBelowStrength";
+                return "Only recordings below the minimum match strength were found";
             }
             return "Eligible recordings were found";
         }
@@ -417,10 +438,10 @@ public static partial class Matcher
         return $"Rejected {reasons.Count} candidates: {string.Join("; ", counts)}";
     }
 
-    public static Choice? Select(Work work, IEnumerable<Video> videos, IReadOnlySet<string> excludedVideos, IReadOnlySet<string> excludedRecordings)
+    public static Choice? Select(Work work, IEnumerable<Video> videos, IReadOnlySet<string> excludedVideos, IReadOnlySet<string> excludedRecordings, int minimumMatchStrength = 0)
     {
         var choices = videos.Where(v => !excludedVideos.Contains(v.Id)).Select(v => Evaluate(work, v))
-            .OfType<Choice>().Where(c => !excludedRecordings.Contains(c.Recording)).ToArray();
+            .OfType<Choice>().Where(c => !excludedRecordings.Contains(c.Recording) && MatchStrength(c.Score) >= minimumMatchStrength).ToArray();
         if (work.Series)
         {
             var openings = choices.Where(c => !Closing().IsMatch(c.Video.Title) &&
