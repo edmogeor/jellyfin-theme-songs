@@ -9,6 +9,14 @@
     "owner": "edmogeor",
     "versions": [
       {
+        "changelog": "### Improved\n\n- Give verified work years and matching film or TV editions more weight when ranking eligible themes, including short series openings.\n- Cap weak soundtrack labels and channel signals so promotional wording cannot outweigh stronger work evidence. Document the scoring weights and selection categories.\n\n",
+        "checksum": "cb7363558d70db2e040b4e8b3c2b8ac8",
+        "sourceUrl": "https://github.com/edmogeor/jellyscore/releases/download/v0.1.11.0/JellyScore.zip",
+        "targetAbi": "12.0.0.0",
+        "timestamp": "2026-09-28T15:15:16Z",
+        "version": "0.1.11.0"
+      },
+      {
         "changelog": "### Fixed\n\n- Reject TV theme uploads that borrow another work's named music, including an *Interview with the Vampire* fan edit uploaded before the 2022 series existed.\n- Distinguish film and TV soundtrack editions using titles and identified albums without treating incidental words in descriptions as edition evidence.\n- Keep named TV tracks eligible when their description explicitly links them to the correct series and year.\n\n",
         "checksum": "7522b05560d41b9bacf6042ca7021411",
         "sourceUrl": "https://github.com/edmogeor/jellyscore/releases/download/v0.1.10.0/JellyScore.zip",
