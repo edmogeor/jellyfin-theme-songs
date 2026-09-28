@@ -34,7 +34,7 @@ JellyScore automatically downloads theme music from YouTube for your movies and 
 3. Open JellyScore. All libraries are selected by default, but you can choose which to include or turn off automatic scans.
 4. JellyScore checks new items as they are added and runs after Jellyfin's next library scan. Select **Scan libraries** to search now. Installing the plugin does not start a scan.
 
-Jellyfin needs permission to write to your media folders. Each movie needs its own folder. JellyScore uses Jellyfin's FFmpeg and comes with the YouTube download tool, so you do not need an API key.
+Jellyfin needs permission to write to your media folders and plugin configuration directory. Each movie needs its own folder. On first use JellyScore downloads and verifies the YouTube download tool for your server's platform, so GitHub must be reachable, but you do not need an API key. Later searches reuse the cached tool.
 
 ## Manage your theme music
 
@@ -58,7 +58,7 @@ make test-unit
 | `make test-smoke` | Reset Docker and check the Jellyfin admin API without YouTube. |
 | `make test-e2e` | Reset Docker and test downloading, refreshing, and deleting theme music. |
 | `make up` | Keep a test server running at `http://127.0.0.1:18096`. |
-| `make package` | Bundle the plugin and all supported yt-dlp binaries in one archive. |
+| `make package` | Package the plugin with a yt-dlp release identifier and checksums, without its executable. |
 
 Run `make setup` to install the .NET tools and Node dependencies before `make check`. The end-to-end tests need Docker, Python 3, curl, and the .NET 10 SDK. The test server uses `user` / `password`. To install a local build, run `make package` and use `dist/JellyScore.zip`.
 

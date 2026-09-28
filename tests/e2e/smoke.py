@@ -118,7 +118,7 @@ assert config["Enabled"] is True, "automatic processing must default to on"
 assert config.get("Libraries") is None, "new installs must default to all libraries"
 status, settings = request("GET", "/ThemeSongs/settings", token=token)
 assert status == 200, f"admin settings: {status}"
-assert settings.get("downloaderAvailable", settings.get("DownloaderAvailable")) is True, "bundled downloader missing"
+assert settings.get("downloaderAvailable", settings.get("DownloaderAvailable")) is True, "downloader release metadata missing"
 status, strings = request("GET", "/ThemeSongs/strings/en-us", token=token)
 assert status == 200 and strings["scanLibraries"] == "Scan libraries", f"English translations: {status} {strings}"
 english_strings = strings
@@ -160,7 +160,7 @@ else:
 status, _ = request("POST", "/ThemeSongs/settings", {"enabled": False, "libraries": []}, token)
 assert status == 204, f"disable automatic processing: {status}"
 assert_settings(token, False, [])
-for method, path in [("GET", "/ThemeSongs/downloads"), ("DELETE", "/ThemeSongs/downloads"), ("GET", "/ThemeSongs/strings/en-us"), ("POST", "/ThemeSongs/scan"), ("POST", "/ThemeSongs/settings")]:
+for method, path in [("GET", "/ThemeSongs/downloads"), ("DELETE", "/ThemeSongs/downloads"), ("GET", "/ThemeSongs/strings/en-us"), ("POST", "/ThemeSongs/scan"), ("POST", "/ThemeSongs/settings"), ("POST", "/ThemeSongs/downloader/retry")]:
     status, _ = request(method, path)
     assert status in (401, 403), f"unauthorized {path}: {status}"
 print("Jellyfin 12 plugin smoke checks passed")
@@ -232,7 +232,11 @@ assert theme is not None, f"test movie theme not downloaded: {downloads}"
 assert field(theme, "source").startswith("https://www.youtube.com/watch?v="), theme
 assert field(theme, "score") > 0, theme
 assert field(theme, "status") == "Active", theme
-subprocess.run(["docker", "compose", "-f", "tests/e2e/compose.yaml", "exec", "-T", "jellyfin", "test", "-f", "/tmp/theme-songs-download-retried"], check=True)
+with open("dist/universal/yt-dlp-version", encoding="utf-8") as release:
+    binary = f"/config/plugins/configurations/jellyscore-yt-dlp/{release.read().strip()}/yt-dlp_linux"
+subprocess.run(["docker", "compose", "-f", "tests/e2e/compose.yaml", "exec", "-T", "jellyfin", "test", "-x", binary], check=True)
+status, _ = request("POST", "/ThemeSongs/downloader/retry", token=token)
+assert status == 204, f"retry endpoint should reuse the verified download: {status}"
 status, songs = request("GET", f"/Items/{movie['Id']}/ThemeSongs", token=token)
 assert status == 200 and songs.get("TotalRecordCount", 0) > 0, f"Jellyfin cannot see downloaded theme: {status} {songs}"
 scan_until(token, "alreadyThemed")

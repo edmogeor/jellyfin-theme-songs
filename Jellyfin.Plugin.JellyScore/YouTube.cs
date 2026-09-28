@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 
 namespace Jellyfin.Plugin.JellyScore;
 
@@ -16,35 +17,83 @@ public sealed class SourceUnavailable(string message) : IOException(message);
 public sealed class YouTube
 {
     private readonly SemaphoreSlim _metadataGate = new(4);
+    private static readonly SemaphoreSlim DownloaderGate = new(1);
+    private static readonly HttpClient DownloaderClient = new() { Timeout = TimeSpan.FromMinutes(2) };
+    private static string? _downloaderPath;
+    public static string? DownloaderError { get; private set; }
 
     // ReSharper disable once MemberCanBePrivate.Global
     public static string DownloaderName(bool windows, bool macos, Architecture architecture, bool musl = false) => (windows, macos, architecture, musl) switch
     {
-        (true, _, Architecture.X64, _) => "yt-dlp-windows-x64.exe",
-        (true, _, Architecture.Arm64, _) => "yt-dlp-windows-arm64.exe",
-        (_, true, Architecture.X64 or Architecture.Arm64, _) => "yt-dlp-macos",
-        (_, _, Architecture.X64, true) => "yt-dlp-linux-musl-x64",
-        (_, _, Architecture.Arm64, true) => "yt-dlp-linux-musl-arm64",
-        (_, _, Architecture.X64, _) => "yt-dlp-linux-x64",
-        (_, _, Architecture.Arm64, _) => "yt-dlp-linux-arm64",
+        (true, _, Architecture.X64, _) => "yt-dlp.exe",
+        (true, _, Architecture.Arm64, _) => "yt-dlp_arm64.exe",
+        (_, true, Architecture.X64 or Architecture.Arm64, _) => "yt-dlp_macos",
+        (_, _, Architecture.X64, true) => "yt-dlp_musllinux",
+        (_, _, Architecture.Arm64, true) => "yt-dlp_musllinux_aarch64",
+        (_, _, Architecture.X64, _) => "yt-dlp_linux",
+        (_, _, Architecture.Arm64, _) => "yt-dlp_linux_aarch64",
         _ => throw new PlatformNotSupportedException("This plugin package has no yt-dlp binary for this server architecture.")
     };
 
-    public static string DownloaderPath => Path.Combine(Path.GetDirectoryName(typeof(YouTube).Assembly.Location)!,
-        DownloaderName(OperatingSystem.IsWindows(), OperatingSystem.IsMacOS(), RuntimeInformation.OSArchitecture,
-            RuntimeInformation.RuntimeIdentifier.Contains("musl", StringComparison.OrdinalIgnoreCase)));
+    public static bool DownloaderAvailable => File.Exists(Path.Combine(Path.GetDirectoryName(typeof(YouTube).Assembly.Location)!, "yt-dlp-version")) &&
+        File.Exists(Path.Combine(Path.GetDirectoryName(typeof(YouTube).Assembly.Location)!, "SHA2-256SUMS"));
 
-    private static string Executable()
+    private static async Task<string> Executable(CancellationToken ct)
     {
-        var path = DownloaderPath;
-        if (!File.Exists(path)) throw new IOException($"Bundled yt-dlp executable {Path.GetFileName(path)} is missing from the plugin directory.");
-        if (!OperatingSystem.IsWindows())
+        if (_downloaderPath is not null) return _downloaderPath;
+        await DownloaderGate.WaitAsync(ct);
+        try
         {
-            var mode = File.GetUnixFileMode(path);
-            if ((mode & UnixFileMode.UserExecute) == 0)
-                File.SetUnixFileMode(path, mode | UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute);
+            if (_downloaderPath is not null) return _downloaderPath;
+            var directory = Path.GetDirectoryName(typeof(YouTube).Assembly.Location)!;
+            var version = (await File.ReadAllTextAsync(Path.Combine(directory, "yt-dlp-version"), ct)).Trim();
+            var asset = DownloaderName(OperatingSystem.IsWindows(), OperatingSystem.IsMacOS(), RuntimeInformation.OSArchitecture,
+                RuntimeInformation.RuntimeIdentifier.Contains("musl", StringComparison.OrdinalIgnoreCase));
+            var checksum = File.ReadLines(Path.Combine(directory, "SHA2-256SUMS"))
+                .Select(line => line.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                .FirstOrDefault(parts => parts.Length == 2 && parts[1] == asset)?[0];
+            if (checksum is null || !Regex.IsMatch(version, "^[a-zA-Z0-9._-]+$") || !Regex.IsMatch(checksum, "^[a-fA-F0-9]{64}$"))
+                throw new SearchFailure("Plugin package has no valid yt-dlp release or checksum for this platform.");
+            var path = Path.Combine(Plugin.Instance.DownloaderFolder, version, asset);
+            var url = new Uri($"https://github.com/yt-dlp/yt-dlp/releases/download/{version}/{asset}");
+            _downloaderPath = await EnsureDownloader(path, checksum, token => DownloaderClient.GetStreamAsync(url, token), ct);
+            DownloaderError = null;
+            return _downloaderPath;
         }
-        return path;
+        catch (Exception e) when (e is IOException or HttpRequestException or SearchFailure or UnauthorizedAccessException or PlatformNotSupportedException ||
+            e is TaskCanceledException && !ct.IsCancellationRequested)
+        {
+            DownloaderError = $"Could not install yt-dlp for this server: {e.Message}";
+            throw new SearchFailure(DownloaderError);
+        }
+        finally { DownloaderGate.Release(); }
+    }
+
+    public static Task<string> RetryDownloader(CancellationToken ct) => Executable(ct);
+
+    // ReSharper disable once MemberCanBePrivate.Global
+    public static async Task<string> EnsureDownloader(string path, string checksum, Func<CancellationToken, Task<Stream>> download, CancellationToken ct)
+    {
+        if (File.Exists(path))
+        {
+            await using var cached = File.OpenRead(path);
+            if (string.Equals(Convert.ToHexString(await SHA256.HashDataAsync(cached, ct)), checksum, StringComparison.OrdinalIgnoreCase))
+                return path;
+        }
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            await using (var input = await download(ct))
+            await using (var output = File.Create(temporary)) await input.CopyToAsync(output, ct);
+            await using (var file = File.OpenRead(temporary))
+                if (!string.Equals(Convert.ToHexString(await SHA256.HashDataAsync(file, ct)), checksum, StringComparison.OrdinalIgnoreCase))
+                    throw new IOException("Downloaded yt-dlp checksum did not match the pinned release.");
+            if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(temporary, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            File.Move(temporary, path, true);
+            return path;
+        }
+        finally { if (File.Exists(temporary)) File.Delete(temporary); }
     }
 
     public async Task<IReadOnlyList<Video>> Search(Work work, CancellationToken ct, bool nextPage = false)
@@ -132,7 +181,7 @@ public sealed class YouTube
         {
             try
             {
-                await Audio.Run(Executable(), ["--no-playlist", "--no-progress", "--no-part", "--no-continue", "--retries", "2", "--socket-timeout", "20",
+                await Audio.Run(await Executable(ct), ["--no-playlist", "--no-progress", "--no-part", "--no-continue", "--retries", "2", "--socket-timeout", "20",
                     "-f", "bestaudio", "--max-filesize", "30M", "-o", path, "https://www.youtube.com/watch?v=" + id], ct);
                 return;
             }
@@ -161,7 +210,7 @@ public sealed class YouTube
     {
         for (var attempt = 0; attempt < 3; attempt++)
         {
-            try { return await Audio.Run(Executable(), args, ct); }
+            try { return await Audio.Run(await Executable(ct), args, ct); }
             catch (IOException e) when (e.Message.Contains("This video is not available", StringComparison.OrdinalIgnoreCase) ||
                 e.Message.Contains("Video unavailable", StringComparison.OrdinalIgnoreCase))
             { throw new SourceUnavailable(e.Message); }

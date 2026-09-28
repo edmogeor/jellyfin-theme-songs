@@ -9,22 +9,12 @@ base="https://github.com/yt-dlp/yt-dlp/releases/download/$version"
 curl --fail --location --retry 3 --silent --show-error "$base/SHA2-256SUMS" -o "$output/checksums"
 
 assets=(yt-dlp_linux yt-dlp_linux_aarch64 yt-dlp_musllinux yt-dlp_musllinux_aarch64 yt-dlp.exe yt-dlp_arm64.exe yt-dlp_macos)
-names=(yt-dlp-linux-x64 yt-dlp-linux-arm64 yt-dlp-linux-musl-x64 yt-dlp-linux-musl-arm64 yt-dlp-windows-x64.exe yt-dlp-windows-arm64.exe yt-dlp-macos)
-for index in "${!assets[@]}"; do
-  asset=${assets[$index]}
-  name=${names[$index]}
-  expected=$(awk -v asset="$asset" '$2 == asset {print $1}' "$output/checksums")
-  test -n "$expected"
-  actual=$(sha256sum "$output/$name" 2>/dev/null | cut -d' ' -f1 || true)
-  if [[ $actual != "$expected" ]]; then
-    curl --fail --location --retry 3 --silent --show-error "$base/$asset" -o "$output/$name"
-    actual=$(sha256sum "$output/$name" | cut -d' ' -f1)
-  fi
-  test "$actual" = "$expected"
-  [[ $name == *.exe ]] || chmod +x "$output/$name"
+for asset in "${assets[@]}"; do
+  test -n "$(awk -v asset="$asset" '$2 == asset {print $1}' "$output/checksums")"
 done
-rm "$output/checksums"
+mv "$output/checksums" "$output/SHA2-256SUMS"
+printf '%s\n' "$version" > "$output/yt-dlp-version"
 (
   cd "$output"
-  python3 -m zipfile -c ../JellyScore.zip Jellyfin.Plugin.JellyScore.dll "${names[@]}"
+  python3 -m zipfile -c ../JellyScore.zip Jellyfin.Plugin.JellyScore.dll yt-dlp-version SHA2-256SUMS
 )

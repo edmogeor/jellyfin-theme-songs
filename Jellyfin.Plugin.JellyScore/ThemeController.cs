@@ -12,8 +12,15 @@ public sealed class ThemeController(ThemeService themes, ThemeScan scan, ITaskMa
 {
     [HttpGet("settings")]
     public object Settings() => new { Plugin.Instance.Configuration.Enabled, Libraries = Plugin.Instance.Configuration.SelectedLibraries(library),
-        DownloaderAvailable = System.IO.File.Exists(YouTube.DownloaderPath),
+        YouTube.DownloaderAvailable, YouTube.DownloaderError,
         LibrariesAvailable = library.GetVirtualFolders().Select(f => new { f.Name, f.ItemId }) };
+
+    [HttpPost("downloader/retry")]
+    public async Task<IActionResult> RetryDownloader(CancellationToken ct)
+    {
+        try { await YouTube.RetryDownloader(ct); return NoContent(); }
+        catch (SearchFailure e) { return UnprocessableEntity(new { Error = e.Message, Code = "downloaderFailed" }); }
+    }
 
     [HttpGet("strings/{locale}")]
     public IActionResult Strings(string locale)

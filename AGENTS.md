@@ -18,7 +18,7 @@ Run `make check` after code or configuration changes. Run the relevant test targ
 
 - Update `build.yaml`, the project version, and `CHANGELOG.md` together.
 - Use `X.Y.Z.W` versions and push a matching `vX.Y.Z.W` tag after the checks pass.
-- The release workflow bundles all supported yt-dlp binaries in one archive and updates the manifest-only `manifest-release` branch.
+- The release workflow packages the yt-dlp release identifier and upstream checksums, without executables, and updates the manifest-only `manifest-release` branch.
 
 ## Changes
 

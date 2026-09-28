@@ -2,9 +2,6 @@
 set -euo pipefail
 docker compose -f tests/e2e/compose.yaml down -v
 bash tests/e2e/up.sh
-docker compose -f tests/e2e/compose.yaml exec -T jellyfin cp /config/plugins/theme-songs/yt-dlp-linux-x64 /config/plugins/theme-songs/yt-dlp-linux-x64.real
-docker compose -f tests/e2e/compose.yaml cp tests/e2e/yt-dlp-wrapper.sh jellyfin:/config/plugins/theme-songs/yt-dlp-linux-x64
-docker compose -f tests/e2e/compose.yaml exec -T jellyfin chmod +x /config/plugins/theme-songs/yt-dlp-linux-x64
 docker compose -f tests/e2e/compose.yaml exec -T jellyfin sh <<'SH'
 set -eu
 movie() {

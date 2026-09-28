@@ -2,7 +2,7 @@
 .PHONY: help setup format check test test-unit test-e2e test-smoke up package
 
 help:
-	@printf '%s\n' 'make setup      Restore .NET and Node tooling.' 'make format     Format C# and admin page.' 'make check      Verify formatting, linting, and Jellyfin 12 builds.' 'make test-unit  Run matcher checks.' 'make test-e2e   Download a real theme in Jellyfin 12.' 'make test-smoke Run Jellyfin API checks without YouTube.' 'make test       Run unit and live e2e checks.' 'make up         Start Jellyfin 12 for manual testing.' 'make package    Bundle all supported yt-dlp binaries in one archive.'
+	@printf '%s\n' 'make setup      Restore .NET and Node tooling.' 'make format     Format C# and admin page.' 'make check      Verify formatting, linting, and Jellyfin 12 builds.' 'make test-unit  Run matcher checks.' 'make test-e2e   Download a real theme in Jellyfin 12.' 'make test-smoke Run Jellyfin API checks without YouTube.' 'make test       Run unit and live e2e checks.' 'make up         Start Jellyfin 12 for manual testing.' 'make package    Package the plugin and yt-dlp release metadata.'
 
 setup:
 	dotnet tool restore

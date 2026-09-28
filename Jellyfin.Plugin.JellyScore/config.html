@@ -50,7 +50,9 @@
       margin-bottom: 0.75rem;
     }
     #themeSongsPage #themeSettings > button:disabled,
-    #themeSongsPage #themeSettings > button:disabled:hover {
+    #themeSongsPage #themeSettings > button:disabled:hover,
+    #themeSongsPage #themeScanStart:disabled,
+    #themeSongsPage #themeScanStart:disabled:hover {
       background: var(--jf-palette-action-disabledBackground);
       color: var(--jf-palette-text-disabled);
       opacity: 0.45;
@@ -76,6 +78,21 @@
     #themeSongsPage .themeRowError .material-icons {
       color: var(--jf-palette-error-main);
       font-size: 1.25em;
+    }
+    #themeSongsPage #themeDownloaderError {
+      box-sizing: border-box;
+      display: block;
+      margin: 0 0 1.25rem;
+      padding: 1.4rem;
+    }
+    #themeSongsPage #themeDownloaderError .material-icons {
+      display: block;
+      margin-bottom: 0.5rem;
+    }
+    #themeSongsPage
+      #themeDownloaderError
+      [data-i18n="downloaderInstallFailed"] {
+      margin-top: 0;
     }
     #themeSongsPage .themeSearch {
       display: flex;
@@ -104,6 +121,7 @@
       margin: 0;
     }
     #themeSongsPage #themeSettings > button,
+    #themeSongsPage #themeDownloaderRetry,
     #themeSongsPage #themeScanStart,
     #themeSongsPage #themeScanCancel {
       display: inline-flex;
@@ -303,7 +321,11 @@
       #themeSongsPage .verticalSection {
         padding: 1.25rem;
       }
+      #themeSongsPage #themeDownloaderError {
+        padding: 1.25rem;
+      }
       #themeSongsPage #themeSettings > button,
+      #themeSongsPage #themeDownloaderRetry,
       #themeSongsPage #themeScanStart,
       #themeSongsPage #themeScanCancel:not([hidden]) {
         display: flex;
@@ -337,6 +359,24 @@
     <p class="fieldDescription" data-i18n="description">
       Automatically finds theme music for your movies and shows.
     </p>
+    <div id="themeDownloaderError" class="themeRowError" role="alert" hidden>
+      <span class="material-icons" aria-hidden="true">error_outline</span>
+      <div>
+        <p data-i18n="downloaderInstallFailed">
+          yt-dlp could not be installed. Check that this server can reach
+          GitHub, then retry.
+        </p>
+        <p id="themeDownloaderDetails" class="fieldDescription"></p>
+        <button
+          is="emby-button"
+          id="themeDownloaderRetry"
+          class="raised"
+          data-i18n="retryDownloader"
+        >
+          Retry download
+        </button>
+      </div>
+    </div>
     <form id="themeSettings" class="verticalSection">
       <h3 class="sectionTitle" data-i18n="libraries">Libraries</h3>
       <div id="themeLibraries" class="checkboxListContainer"></div>
@@ -487,6 +527,7 @@
         allTotal = 0;
       let scanRunning = false;
       let bulkBusy = false;
+      let downloaderFailed = false;
       let confirming = false;
       let lastScan = null;
       let savedSettings = "";
@@ -534,17 +575,24 @@
         removeAll.hidden = allTotal === 0;
         removeAll.disabled = scanRunning || bulkBusy || allTotal === 0;
         removeAll.textContent = t(bulkBusy ? "deleting" : "deleteAll");
-        $("#themeScanStart").disabled = scanRunning || bulkBusy;
+        $("#themeScanStart").disabled =
+          scanRunning || bulkBusy || downloaderFailed;
         for (const button of page.querySelectorAll(
           "#themeRows button[data-theme-action]",
         )) {
           const busy = button.closest("tr").dataset.busy === "true";
-          button.disabled = scanRunning || bulkBusy || busy;
+          button.disabled =
+            scanRunning ||
+            bulkBusy ||
+            busy ||
+            (downloaderFailed && button.dataset.requiresDownloader === "true");
           button.title = scanRunning
             ? t("availableAfterScan")
             : bulkBusy || busy
               ? t("working")
-              : button.dataset.themeAction;
+              : downloaderFailed && button.dataset.requiresDownloader === "true"
+                ? t("downloaderInstallFailed")
+                : button.dataset.themeAction;
         }
       };
       const confirmDelete = async (message, title) => {
@@ -641,6 +689,10 @@
         const data = await request("settings");
         const form = $("#themeSettings");
         if (!data.DownloaderAvailable) toast(t("downloaderMissing"));
+        downloaderFailed = Boolean(data.DownloaderError);
+        $("#themeDownloaderError").hidden = !data.DownloaderError;
+        $("#themeDownloaderDetails").textContent = data.DownloaderError || "";
+        updateRowActions();
         form.elements.enabled.checked = data.Enabled;
         $("#themeLibraries").replaceChildren(
           ...data.LibrariesAvailable.map((lib) => {
@@ -753,8 +805,9 @@
           refresh.append(icon("refresh"));
           refresh.setAttribute("aria-label", t("refreshThemeFor", item.Name));
           refresh.dataset.themeAction = t("refreshTheme");
+          refresh.dataset.requiresDownloader = "true";
           refresh.onclick = async () => {
-            if (row.dataset.busy === "true") return;
+            if (downloaderFailed || row.dataset.busy === "true") return;
             setBusy(t("refreshing"));
             error.hidden = true;
             try {
@@ -814,9 +867,11 @@
             (lastScan.Running && !data.Running))
         )
           load(rows);
+        if (data.Failed > (lastScan?.Failed ?? 0)) load(settings);
         lastScan = {
           RunId: data.RunId,
           Added: data.Added,
+          Failed: data.Failed,
           Running: data.Running,
         };
         scanRunning = data.Running;
@@ -943,6 +998,22 @@
           await progress();
         } catch (e) {
           showError(e);
+        }
+      };
+      $("#themeDownloaderRetry").onclick = async () => {
+        const button = $("#themeDownloaderRetry");
+        button.disabled = true;
+        button.textContent = t("downloadingDownloader");
+        try {
+          await request("downloader/retry", { method: "POST" });
+          await settings();
+          toast(t("downloaderReady"));
+        } catch (e) {
+          await load(settings);
+          if (e.status !== 422) showError(e);
+        } finally {
+          button.disabled = false;
+          button.textContent = t("retryDownloader");
         }
       };
       $("#themeScanCancel").onclick = async () => {

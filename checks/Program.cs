@@ -138,10 +138,10 @@ check(Matcher.Evaluate(vampire, video("7jLOWfP3Lmc", "Interview with the Vampire
     "1994 film opening is not eligible for the 2022 series");
 check(YouTube.FirstTrack("No tracklist here") is null, "album without a tracklist has no search hint");
 check(YouTube.FirstTrack("Tracklist:\n1) First Track\n2) Next Track") == "First Track", "parenthesized track number parsed");
-check(YouTube.DownloaderName(false, false, Architecture.X64) == "yt-dlp-linux-x64", "Linux x64 binary");
-check(YouTube.DownloaderName(false, false, Architecture.Arm64, true) == "yt-dlp-linux-musl-arm64", "Alpine arm64 binary");
-check(YouTube.DownloaderName(true, false, Architecture.Arm64) == "yt-dlp-windows-arm64.exe", "Windows arm64 binary");
-check(YouTube.DownloaderName(false, true, Architecture.Arm64) == "yt-dlp-macos", "macOS universal binary");
+check(YouTube.DownloaderName(false, false, Architecture.X64) == "yt-dlp_linux", "Linux x64 binary");
+check(YouTube.DownloaderName(false, false, Architecture.Arm64, true) == "yt-dlp_musllinux_aarch64", "Alpine arm64 binary");
+check(YouTube.DownloaderName(true, false, Architecture.Arm64) == "yt-dlp_arm64.exe", "Windows arm64 binary");
+check(YouTube.DownloaderName(false, true, Architecture.Arm64) == "yt-dlp_macos", "macOS universal binary");
 check(Audio.FixedGain(-24, -9) == 6, "fixed gain brings a quiet track to -18 LUFS and -3 dBTP");
 check(Audio.FixedGain(-24, -1) == -2, "true peak caps gain even when average loudness stays below target");
 var scanEstimate = new ScanStatus { Running = true, Total = 12, StartedAt = DateTimeOffset.UtcNow };
@@ -150,11 +150,28 @@ scanEstimate.StartedAt = DateTimeOffset.UtcNow.AddSeconds(-60);
 check(scanEstimate.RemainingSeconds is > 279 and < 282, "a slow item adds one overdue interval rather than inflating every remaining item");
 scanEstimate.Running = false;
 check(scanEstimate.RemainingSeconds is null, "completed scans do not show an ETA");
-check(!File.Exists("dist/JellyScore.zip") || System.IO.Compression.ZipFile.OpenRead("dist/JellyScore.zip").Entries.Count == 8, "one archive contains DLL and seven executables");
+check(!File.Exists("dist/JellyScore.zip") || System.IO.Compression.ZipFile.OpenRead("dist/JellyScore.zip").Entries.Count == 3,
+    "plugin archive contains DLL, pinned version, and checksums only");
 var folder = Path.Combine(Path.GetTempPath(), "theme-songs-checks-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(folder);
 try
 {
+    var binary = Path.Combine(folder, "yt-dlp", "test-binary");
+    var bytes = System.Text.Encoding.UTF8.GetBytes("verified downloader");
+    var hash = Convert.ToHexString(SHA256.HashData(bytes));
+    var downloads = 0;
+    Task<Stream> fetch(CancellationToken _) { downloads++; return Task.FromResult<Stream>(new MemoryStream(bytes)); }
+    check(await YouTube.EnsureDownloader(binary, hash, fetch, CancellationToken.None) == binary && downloads == 1,
+        "first use downloads the selected binary");
+    check(await YouTube.EnsureDownloader(binary, hash, fetch, CancellationToken.None) == binary && downloads == 1,
+        "valid cached binary avoids another download");
+    File.WriteAllText(binary, "corrupt");
+    try { await YouTube.EnsureDownloader(binary, hash, _ => Task.FromResult<Stream>(new MemoryStream([1, 2, 3])), CancellationToken.None); }
+    catch (IOException) { }
+    check(File.ReadAllText(binary) == "corrupt" && Directory.GetFiles(Path.GetDirectoryName(binary)!, "*.tmp").Length == 0,
+        "failed verification never installs an executable or leaves temporary files");
+    check(await YouTube.EnsureDownloader(binary, hash, fetch, CancellationToken.None) == binary && downloads == 2 && File.ReadAllBytes(binary).SequenceEqual(bytes),
+        "corrupt cached executable is replaced by a verified copy");
     var path = Path.Combine(folder, "theme.mp3");
     File.WriteAllText(path, "plugin theme");
     var managed = new ManagedTheme { Folder = folder, Path = path, Hash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))) };

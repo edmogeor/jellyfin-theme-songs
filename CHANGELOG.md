@@ -1,3 +1,10 @@
+## [0.1.9.0]
+
+### Improved
+
+- Reduce the plugin archive from roughly 224 MB to under 100 KB by downloading and verifying only the server's yt-dlp binary on first use, then caching it.
+- Show installation failures and a retry button in the admin page. Pause manual scans and individual theme refreshes until yt-dlp is available again.
+
 ## [0.1.8.0]
 
 ### Fixed

@@ -15,8 +15,13 @@ public sealed class Plugin : BasePlugin<Settings>, IHasWebPages
     public override Guid Id => Guid.Parse("129e8a8b-87f1-48d3-802b-7dd151d72920");
     public override string Name => "JellyScore";
     public override string Description => "Automatically finds theme music for your movies and shows.";
+    public string DownloaderFolder { get; }
 
-    public Plugin(IApplicationPaths paths, IXmlSerializer serializer) : base(paths, serializer) => Instance = this;
+    public Plugin(IApplicationPaths paths, IXmlSerializer serializer) : base(paths, serializer)
+    {
+        DownloaderFolder = Path.Combine(paths.PluginConfigurationsPath, "jellyscore-yt-dlp");
+        Instance = this;
+    }
 
     public IEnumerable<PluginPageInfo> GetPages() => [new()
     {
