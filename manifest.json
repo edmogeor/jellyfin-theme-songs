@@ -9,6 +9,14 @@
     "owner": "edmogeor",
     "versions": [
       {
+        "changelog": "### Improved\n\n- Fade downloaded themes in and out over one second, and lower the fixed-gain loudness target to -20 LUFS.\n\n",
+        "checksum": "5d2e8134b5229c4c9b2ac8d4e6a70ec0",
+        "sourceUrl": "https://github.com/edmogeor/jellyscore/releases/download/v0.1.16.0/JellyScore.zip",
+        "targetAbi": "12.0.0.0",
+        "timestamp": "2026-09-28T19:06:14Z",
+        "version": "0.1.16.0"
+      },
+      {
         "changelog": "### Improved\n\n- Match the minimum-strength label to the Libraries heading, make its helper text quieter, and add more space above Save settings.\n\n",
         "checksum": "7792d2d0788b82d5fc6d88a5d47fe3a7",
         "sourceUrl": "https://github.com/edmogeor/jellyscore/releases/download/v0.1.15.0/JellyScore.zip",
