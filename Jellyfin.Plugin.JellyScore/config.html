@@ -627,13 +627,14 @@
             bulkBusy ||
             busy ||
             (downloaderFailed && button.dataset.requiresDownloader === "true");
-          button.title = scanRunning
-            ? t("availableAfterScan")
-            : bulkBusy || busy
-              ? t("working")
-              : downloaderFailed && button.dataset.requiresDownloader === "true"
-                ? t("downloaderInstallFailed")
-                : button.dataset.themeAction;
+          if (scanRunning) button.title = t("availableAfterScan");
+          else if (bulkBusy || busy) button.title = t("working");
+          else if (
+            downloaderFailed &&
+            button.dataset.requiresDownloader === "true"
+          )
+            button.title = t("downloaderInstallFailed");
+          else button.title = button.dataset.themeAction;
         }
       };
       const confirmDelete = async (message, title) => {
