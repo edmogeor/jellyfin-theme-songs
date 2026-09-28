@@ -66,7 +66,7 @@ public sealed class YouTube
     {
         var query = $"{work.Title} {work.Year} soundtrack album";
         var flat = await Flat(query, 20, ct);
-        var fullAlbum = flat.FirstOrDefault(video => video.Seconds > (work.Series ? 300 : 480) &&
+        var fullAlbum = flat.FirstOrDefault(video => video.Seconds > Matcher.MaxSeconds &&
             video.Title.Contains("album", StringComparison.OrdinalIgnoreCase) &&
             video.Title.Contains(work.Title, StringComparison.OrdinalIgnoreCase));
         if (fullAlbum is null) return [];
@@ -77,7 +77,7 @@ public sealed class YouTube
         var soundtrack = work.Series ? "TV soundtrack" : "Original Motion Picture Soundtrack";
         var tracks = await Flat($"{firstTrack} {work.Title} {soundtrack}", 10, ct);
         return await Details(tracks.Where(video => Matcher.Promising(work, video) ||
-            video.Seconds is > 0 and <= 480 && video.Title.Contains(firstTrack, StringComparison.OrdinalIgnoreCase)).Take(4), ct);
+            video.Seconds is > 0 and <= Matcher.MaxSeconds && video.Title.Contains(firstTrack, StringComparison.OrdinalIgnoreCase)).Take(4), ct);
     }
 
     // ReSharper disable once MemberCanBePrivate.Global
@@ -173,6 +173,9 @@ public sealed class YouTube
 
 public static partial class Matcher
 {
+    private const int MinSeconds = 10;
+    internal const int MaxSeconds = 480;
+
     [GeneratedRegex(@"\b(cover|remix|fan.?edit|extended|reaction|trailer|review|full album|compilation|livestream|live stream|karaoke|piano cover|tutorials?|how to play|game|parody|tribute|ranked|top\s?10)\b", RegexOptions.IgnoreCase)]
     private static partial Regex Reject();
     [GeneratedRegex(@"\b(part two|part 2|sequel)\b", RegexOptions.IgnoreCase)]
@@ -181,6 +184,8 @@ public static partial class Matcher
     private static partial Regex Theme();
     [GeneratedRegex(@"\b(closing|end)\s+(credits?|titles?|theme)\b", RegexOptions.IgnoreCase)]
     private static partial Regex Closing();
+    [GeneratedRegex(@"\b(opening(?!\s+scene\b)|intro|main titles?|title sequence)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex SeriesOpening();
     [GeneratedRegex(@"\b(theme|opening|main title|title sequence|intro|overture)\b", RegexOptions.IgnoreCase)]
     private static partial Regex MainTheme();
     [GeneratedRegex(@"(?im)^Album:\s*(.+)$")]
@@ -203,7 +208,7 @@ public static partial class Matcher
     }
 
     public static bool Promising(Work work, Video video) =>
-        (video.Seconds is not { } seconds || seconds >= (work.Series ? 10 : 20) && seconds <= (work.Series ? 300 : 480)) &&
+        (video.Seconds is not { } seconds || seconds is >= MinSeconds and <= MaxSeconds) &&
         !Reject().IsMatch(video.Title) && (!Sequel().IsMatch(video.Title) || Sequel().IsMatch(work.Title)) &&
         Theme().IsMatch(video.Title) &&
         (Contains(video.Title, work.Title) || work.OriginalTitle is not null && Contains(video.Title, work.OriginalTitle) || MainTheme().IsMatch(video.Title));
@@ -248,7 +253,7 @@ public static partial class Matcher
     public static Choice? Evaluate(Work work, Video video, out string reason)
     {
         reason = "";
-        if (video.Seconds is not { } length || length < (work.Series ? 10 : 20) || length > (work.Series ? 300 : 480))
+        if (video.Seconds is not { } length || length is < MinSeconds or > MaxSeconds)
         { reason = "Duration is missing or outside the theme range"; return null; }
         var lines = video.Description.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         var trackIndex = Array.FindIndex(lines, s => s.Contains('·'));
@@ -312,7 +317,12 @@ public static partial class Matcher
     {
         var choices = videos.Where(v => !excludedVideos.Contains(v.Id)).Select(v => Evaluate(work, v))
             .OfType<Choice>().Where(c => !excludedRecordings.Contains(c.Recording)).ToArray();
-        if (!work.Series)
+        if (work.Series)
+        {
+            var openings = choices.Where(c => !Closing().IsMatch(c.Video.Title) && SeriesOpening().IsMatch(c.Video.Title)).ToArray();
+            if (openings.Length > 0) choices = openings;
+        }
+        else
         {
             var mainThemes = choices.Where(c => !Closing().IsMatch(c.Video.Title) && MainTheme().IsMatch(c.Video.Title)).ToArray();
             var closingThemes = choices.Where(c => Closing().IsMatch(c.Video.Title)).ToArray();

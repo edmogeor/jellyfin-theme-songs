@@ -1,3 +1,10 @@
+## [0.1.4.0]
+
+### Improved
+
+- Prefer an eligible TV opening or intro over a higher-scoring soundtrack track, as seen with *Interview with the Vampire* (2022).
+- Use the same 10-second to 8-minute theme duration range for movies and series.
+
 ## [0.1.3.0]
 
 ### Added

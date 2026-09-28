@@ -17,8 +17,8 @@ check(Matcher.Evaluate(partTwo, partTwoVideo) is { Score: > 0 }, "Part Two sound
 check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune Main Theme", licensed.Replace("2021", "1984"))) is null, "adaptation rejected");
 check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune Main Theme", licensed, 481)) is null, "overlong video rejected");
 check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune Main Theme", licensed, null)) is null, "unknown duration rejected");
-check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune 2021 Main Theme", "", 20)) is not null, "movie minimum duration included");
-check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune 2021 Main Theme", "", 19)) is null, "movie below minimum duration rejected");
+check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune 2021 Main Theme", "", 10)) is not null, "movie minimum duration included");
+check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune 2021 Main Theme", "", 9)) is null, "movie below minimum duration rejected");
 check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune 2021 Main Theme", "", 480)) is not null, "movie maximum duration included");
 check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune Main Theme", "Dune 2021 theme")) is { Score: > 0 }, "description resolves edition");
 check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune Main Theme", "Dune theme")) is null, "ambiguous edition rejected");
@@ -100,8 +100,25 @@ check(Matcher.Evaluate(office, video("bbbbbbbbbbb", "The Office UK Opening Credi
     "different regional version rejected");
 check(Matcher.Evaluate(office, video("bbbbbbbbbbb", "The Office (US) Opening Credits", "", 10)) is not null,
     "series minimum duration included");
-check(Matcher.Evaluate(office, video("bbbbbbbbbbb", "The Office (US) Opening Credits", "", 301)) is null,
+check(Matcher.Promising(office, video("bbbbbbbbbbb", "The Office (US) Opening Credits", "", 480)) &&
+    Matcher.Evaluate(office, video("bbbbbbbbbbb", "The Office (US) Opening Credits", "", 480)) is not null,
+    "series shares the movie maximum duration");
+check(Matcher.Evaluate(office, video("bbbbbbbbbbb", "The Office (US) Opening Credits", "", 481)) is null,
     "series above maximum duration rejected");
+var vampire = new Work("Interview with the Vampire", null, 2022, true);
+var vampireOpening = new Video("JPeuE8uh9FY", "Interview with the Vampire (1 season) | 2022 | Opening", "", "Илья Якуба", 22, ReleaseYear: 2022);
+var vampireSoundtrack = new Video("NWTRlUYij6M", "Come to Me | Interview with the Vampire (Original Television Series Soundtrack)",
+    "Music video by Daniel Hart performing Come to Me. (C) 2022 AMC Film Holdings LLC", "SonySoundtracksVEVO", 159);
+check(Matcher.Promising(vampire, vampireOpening), "the short 2022 opening reaches full metadata evaluation");
+check(Matcher.Evaluate(vampire, vampireOpening)?.Score < Matcher.Evaluate(vampire, vampireSoundtrack)?.Score,
+    "the short opening scores below a full soundtrack track");
+check(Matcher.Select(vampire, [vampireSoundtrack, vampireOpening], new HashSet<string>(), new HashSet<string>())?.Video.Id == vampireOpening.Id,
+    "series opening wins over a higher-scoring soundtrack track");
+check(Matcher.Select(vampire, [vampireSoundtrack], new HashSet<string>(), new HashSet<string>())?.Video.Id == vampireSoundtrack.Id,
+    "soundtrack track remains a fallback when no opening is found");
+check(Matcher.Evaluate(vampire, video("7jLOWfP3Lmc", "Interview with the Vampire - Opening",
+    "A clip from Interview with the Vampire (1994) of the opening scene.", 164)) is null,
+    "1994 film opening is not eligible for the 2022 series");
 check(YouTube.FirstTrack("No tracklist here") is null, "album without a tracklist has no search hint");
 check(YouTube.FirstTrack("Tracklist:\n1) First Track\n2) Next Track") == "First Track", "parenthesized track number parsed");
 check(YouTube.DownloaderName(false, false, Architecture.X64) == "yt-dlp-linux-x64", "Linux x64 binary");
