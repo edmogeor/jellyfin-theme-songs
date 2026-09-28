@@ -1,3 +1,9 @@
+## [0.1.7.0]
+
+### Fixed
+
+- Retry loading administrator translations after an initial failure so localized settings and diagnostics appear when the translations become available.
+
 ## [0.1.6.0]
 
 ### Improved
