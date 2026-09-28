@@ -41,6 +41,7 @@ public sealed class Store
         public Dictionary<Guid, HashSet<string>> ExcludedRecordings { get; init; } = new();
         public HashSet<Guid> Suppressed { get; init; } = [];
         public Dictionary<Guid, string> Outcomes { get; init; } = new();
+        public double? ScanSecondsPerItem { get; set; }
     }
 
     public T Read<T>(Func<State, T> read) { lock (_gate) return read(_state); }

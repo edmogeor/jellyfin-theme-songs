@@ -821,25 +821,13 @@
           bar.value = data.Total
             ? Math.round((100 * data.Processed) / data.Total)
             : 0;
-        const remaining =
-          data.Running && data.Processed > 0 && data.Total > data.Processed
-            ? Math.ceil(
-                ((Date.now() - Date.parse(data.StartedAt)) /
-                  1000 /
-                  data.Processed) *
-                  (data.Total - data.Processed),
-              )
-            : null;
         const estimate =
-          data.Running && data.Processed < data.Total
-            ? remaining === null
-              ? " · " + t("estimating")
-              : remaining < 60
-                ? " · " + t("lessThanMinute")
-                : " · " + t("aboutMinutes", Math.ceil(remaining / 60))
-            : data.Running && !data.Total
-              ? " · " + t("estimating")
-              : "";
+          data.Running && data.RemainingSeconds != null
+            ? " · " +
+              (data.RemainingSeconds < 60
+                ? t("lessThanMinute")
+                : t("aboutMinutes", Math.ceil(data.RemainingSeconds / 60)))
+            : "";
         $("#themeProgress").textContent =
           (data.Total
             ? t("scanning", data.Processed, data.Total)

@@ -84,8 +84,12 @@ public sealed class LibraryScanWorker(ITaskManager tasks) : IHostedService
 // ReSharper disable UnusedAutoPropertyAccessor.Global
 public sealed class ScanStatus
 {
+    private const int PriorItems = 3;
+
     public Guid RunId { get; set; }
     public DateTimeOffset StartedAt { get; set; }
+    internal DateTimeOffset LastCompletedAt { get; set; }
+    internal double PriorSecondsPerItem { get; init; } = 20;
     public bool Running { get; set; }
     public bool Cancelled { get; set; }
     public string? CurrentItem { get; set; }
@@ -98,10 +102,23 @@ public sealed class ScanStatus
     public string[] Rejections { get; set; } = [];
     public int Unsupported { get; set; }
     public int Failed { get; set; }
+    // ReSharper disable once UnusedMember.Global
+    public double? RemainingSeconds
+    {
+        get
+        {
+            if (!Running || Total <= Processed || Total == 0) return null;
+            var completedAt = LastCompletedAt > StartedAt ? LastCompletedAt : StartedAt;
+            var secondsPerItem = ((completedAt - StartedAt).TotalSeconds + PriorItems * PriorSecondsPerItem) / (Processed + PriorItems);
+            var stalledFor = Math.Max(0, (DateTimeOffset.UtcNow - completedAt).TotalSeconds - secondsPerItem);
+            return (Total - Processed) * secondsPerItem + stalledFor;
+        }
+    }
 }
 // ReSharper restore UnusedAutoPropertyAccessor.Global
 
-public sealed class ThemeScan(ILibraryManager library, ThemeService themes, ILogger<ThemeScan> logger) : IScheduledTask
+// ReSharper disable once ClassNeverInstantiated.Global
+public sealed class ThemeScan(ILibraryManager library, ThemeService themes, Store store, ILogger<ThemeScan> logger) : IScheduledTask
 {
     private static ScanStatus _status = new();
     public string Name => "Scan with JellyScore";
@@ -113,7 +130,9 @@ public sealed class ThemeScan(ILibraryManager library, ThemeService themes, ILog
 
     public async Task ExecuteAsync(IProgress<double> progress, CancellationToken ct)
     {
-        _status = new ScanStatus { RunId = Guid.NewGuid(), StartedAt = DateTimeOffset.UtcNow, Running = true };
+        var prior = store.Read(s => s.ScanSecondsPerItem);
+        _status = new ScanStatus { RunId = Guid.NewGuid(), StartedAt = DateTimeOffset.UtcNow, Running = true,
+            PriorSecondsPerItem = prior is > 0 and < 3600 ? prior.Value : 20 };
         var status = _status;
         var active = new Dictionary<Guid, string>();
         try
@@ -123,6 +142,8 @@ public sealed class ThemeScan(ILibraryManager library, ThemeService themes, ILog
             if (selected.Length == 0) { progress.Report(100); return; }
             var query = new InternalItemsQuery { IncludeItemTypes = [BaseItemKind.Movie, BaseItemKind.Series], AncestorIds = selected, Recursive = true };
             status.Total = library.GetCount(query);
+            status.StartedAt = DateTimeOffset.UtcNow;
+            status.LastCompletedAt = status.StartedAt;
             for (var offset = 0; ; offset += 100)
             {
                 ct.ThrowIfCancellationRequested();
@@ -150,11 +171,13 @@ public sealed class ThemeScan(ILibraryManager library, ThemeService themes, ILog
                     catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
                     catch (Exception e) { lock (status) status.Failed++; logger.LogWarning("Theme scan failed for {ItemId}: {Message}", item.Id, e.Message); }
                     finally { lock (status) { active.Remove(item.Id); status.CurrentItem = active.Count == 0 ? null : string.Join(", ", active.Values); } }
-                    lock (status) { status.Processed++; progress.Report(100d * status.Processed / Math.Max(1, status.Total)); }
+                    lock (status) { status.Processed++; status.LastCompletedAt = DateTimeOffset.UtcNow; progress.Report(100d * status.Processed / Math.Max(1, status.Total)); }
                 });
                 if (batch.Length < 100) break;
             }
             progress.Report(100);
+            if (status.Processed > 0)
+                store.Change(s => s.ScanSecondsPerItem = (status.LastCompletedAt - status.StartedAt).TotalSeconds / status.Processed);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { status.Cancelled = true; throw; }
         finally { status.Running = false; status.CurrentItem = null; }

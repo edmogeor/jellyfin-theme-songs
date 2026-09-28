@@ -127,6 +127,12 @@ check(YouTube.DownloaderName(true, false, Architecture.Arm64) == "yt-dlp-windows
 check(YouTube.DownloaderName(false, true, Architecture.Arm64) == "yt-dlp-macos", "macOS universal binary");
 check(Audio.FixedGain(-24, -9) == 6, "fixed gain brings a quiet track to -18 LUFS and -3 dBTP");
 check(Audio.FixedGain(-24, -1) == -2, "true peak caps gain even when average loudness stays below target");
+var scanEstimate = new ScanStatus { Running = true, Total = 12, StartedAt = DateTimeOffset.UtcNow };
+check(scanEstimate.RemainingSeconds is > 239 and < 241, "first scan has an ETA before any item completes");
+scanEstimate.StartedAt = DateTimeOffset.UtcNow.AddSeconds(-60);
+check(scanEstimate.RemainingSeconds is > 279 and < 282, "a slow item adds one overdue interval rather than inflating every remaining item");
+scanEstimate.Running = false;
+check(scanEstimate.RemainingSeconds is null, "completed scans do not show an ETA");
 check(!File.Exists("dist/JellyScore.zip") || System.IO.Compression.ZipFile.OpenRead("dist/JellyScore.zip").Entries.Count == 8, "one archive contains DLL and seven executables");
 var folder = Path.Combine(Path.GetTempPath(), "theme-songs-checks-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(folder);

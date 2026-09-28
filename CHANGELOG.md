@@ -1,3 +1,10 @@
+## [0.1.5.0]
+
+### Improved
+
+- Show a scan time estimate as soon as the item count is known, using prior scan throughput and adjusting it as items finish.
+- Keep the estimate on the server to avoid client clock differences and large jumps during slow searches.
+
 ## [0.1.4.0]
 
 ### Improved

@@ -58,6 +58,8 @@ def scan_until(token, expected=None, expect_current=False):
         status, progress = request("GET", "/ThemeSongs/scan", token=token)
         if status == 200 and field(progress, "running") and field(progress, "currentItem"):
             assert field(progress, "startedAt").startswith("20"), f"scan start time missing: {progress}"
+            if field(progress, "total") > field(progress, "processed"):
+                assert field(progress, "remainingSeconds") > 0, f"running scan has no ETA: {progress}"
             saw_current |= "Sorcerer" in field(progress, "currentItem")
         if status == 200 and not field(progress, "running") and field(progress, "runId") != field(before, "runId"):
             assert field(progress, "processed") == field(progress, "total") == 5, f"scan did not process all items: {progress}"
