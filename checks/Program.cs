@@ -51,7 +51,7 @@ check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune 1984 Main Theme", "")) i
 check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune 2021 Main Theme cover", "")) is null, "cover without metadata rejected");
 check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Top 10 Dune 2021 Themes", "")) is null, "ranking video rejected");
 check(Matcher.Select(work, [original, video("bbbbbbbbbbb", "Dune Main Theme", licensed.Replace("Hans Zimmer", "Other Artist"))],
-    new HashSet<string>(), new HashSet<string>()) is null, "conflicting recordings rejected");
+    new HashSet<string>(), new HashSet<string>())?.Video.Id == original.Id, "first equally ranked recording selected");
 var chosen = Matcher.Evaluate(work, original)!;
 check(Matcher.Select(work, [original], new HashSet<string>(), new HashSet<string> { chosen.Recording }) is null, "refresh excludes installed recording");
 check(Matcher.Select(work, [original, original with { Id = "bbbbbbbbbbb" }], new HashSet<string>(), new HashSet<string>()) is not null,
@@ -62,8 +62,18 @@ check(Matcher.RejectionReason(work, [original], new HashSet<string>(), new HashS
     "Only previously used recordings were found", "excluded recording has distinct reason");
 check(Matcher.RejectionReason(work, [video("bbbbbbbbbbb", "Dune 1984 Main Theme", "")], new HashSet<string>(), new HashSet<string>()).Contains("Different release year"),
     "rejected edition reports why");
-check(Matcher.RejectionReason(work, [original, video("bbbbbbbbbbb", "Dune Main Theme", licensed.Replace("Hans Zimmer", "Other Artist"))],
-    new HashSet<string>(), new HashSet<string>()) == "Multiple equally ranked theme recordings", "tie reports ambiguity");
+var oak = new Work("The End of Oak Street", null, 2026, false);
+Video oakTrack(string id, string title, int seconds) => new(id, title, "Composed by Michael Giacchino.", "OfficialMovieSoundtrack", seconds);
+var endOfOakSuite = oakTrack("48Jx-37AFVY", "27. The End of Oak Suite (The End of Oak Street Soundtrack)", 286);
+var mainOnEndOfDays = oakTrack("KzScQcXFImg", "26. Main on End of Days (The End of Oak Street Soundtrack)", 105);
+check(Matcher.Promising(oak, endOfOakSuite) && Matcher.Promising(oak, mainOnEndOfDays),
+    "End of Oak Street soundtrack tracks pass the search shortlist");
+check(Matcher.Evaluate(oak, mainOnEndOfDays)?.Score == Matcher.Evaluate(oak, endOfOakSuite)?.Score,
+    "End of Oak Street soundtrack recordings tie on ranking evidence");
+check(Matcher.Select(oak, [endOfOakSuite, mainOnEndOfDays], new HashSet<string>(), new HashSet<string>())?.Video.Id == endOfOakSuite.Id,
+    "End of Oak Street tie selects the first eligible recording");
+check(Matcher.Select(oak, [endOfOakSuite, mainOnEndOfDays], new HashSet<string> { endOfOakSuite.Id }, new HashSet<string>())?.Video.Id == mainOnEndOfDays.Id,
+    "excluded source leaves the other soundtrack recording eligible");
 var harry = new Work("Harry Potter and the Sorcerer's Stone", null, 2001, false);
 var named = video("wtHra9tFISY", "Hedwig's Theme", "Provided to YouTube by Atlantic Records\n\nHedwig's Theme · John Williams\n\nHarry Potter and The Sorcerer's Stone Original Motion Picture Soundtrack\n\n℗ 2001 Warner Records Inc.", 309);
 check(Matcher.Promising(harry, named), "named themes remain in the cheap shortlist");
@@ -94,6 +104,8 @@ check(YouTube.DownloaderName(false, false, Architecture.X64) == "yt-dlp-linux-x6
 check(YouTube.DownloaderName(false, false, Architecture.Arm64, true) == "yt-dlp-linux-musl-arm64", "Alpine arm64 binary");
 check(YouTube.DownloaderName(true, false, Architecture.Arm64) == "yt-dlp-windows-arm64.exe", "Windows arm64 binary");
 check(YouTube.DownloaderName(false, true, Architecture.Arm64) == "yt-dlp-macos", "macOS universal binary");
+check(Audio.FixedGain(-24, -9) == 6, "fixed gain brings a quiet track to -18 LUFS and -3 dBTP");
+check(Audio.FixedGain(-24, -1) == -2, "true peak caps gain even when average loudness stays below target");
 check(!File.Exists("dist/JellyScore.zip") || System.IO.Compression.ZipFile.OpenRead("dist/JellyScore.zip").Entries.Count == 8, "one archive contains DLL and seven executables");
 var folder = Path.Combine(Path.GetTempPath(), "theme-songs-checks-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(folder);

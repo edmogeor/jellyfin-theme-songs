@@ -300,7 +300,7 @@ public static partial class Matcher
         {
             if (eligible.All(c => excludedVideos.Contains(c.Video.Id) || excludedRecordings.Contains(c.Recording)))
                 return "Only previously used recordings were found";
-            return "Multiple equally ranked theme recordings";
+            return "Eligible recordings were found";
         }
         if (reasons.Count == 0) return "No search results passed the title and duration shortlist";
         var counts = reasons.GroupBy(reason => reason).OrderByDescending(group => group.Count())
@@ -319,7 +319,6 @@ public static partial class Matcher
             if (mainThemes.Length > 0) choices = mainThemes;
             else if (closingThemes.Length > 0) choices = closingThemes;
         }
-        var recordings = choices.OrderByDescending(c => c.Score).DistinctBy(c => c.Recording).Take(2).ToArray();
-        return recordings.Length > 0 && (recordings.Length == 1 || recordings[0].Score > recordings[1].Score) ? recordings[0] : null;
+        return choices.OrderByDescending(c => c.Score).FirstOrDefault();
     }
 }

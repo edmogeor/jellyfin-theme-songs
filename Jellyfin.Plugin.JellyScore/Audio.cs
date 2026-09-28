@@ -38,6 +38,9 @@ public static class Audio
         return JsonDocument.Parse(match.Value).RootElement.Clone();
     }
 
+    // ReSharper disable once MemberCanBePrivate.Global
+    public static double FixedGain(double loudness, double truePeak) => Math.Min(-18 - loudness, -3 - truePeak);
+
     public static async Task Convert(Choice choice, string destination, IMediaEncoder encoder, CancellationToken ct)
     {
         var raw = destination + ".source";
@@ -45,13 +48,13 @@ public static class Audio
         {
             await YouTube.Download(choice.Video.Id, raw, ct);
             if (!File.Exists(raw) || new FileInfo(raw).Length is 0 or > 30_000_000) throw new DownloadFailure("Downloaded audio is missing or too large.");
-            // Leave headroom for MP3 encoding while verifying the final file against the -2 dBTP ceiling.
+            // Leave headroom for MP3 encoding without compressing the recording's dynamics.
             var measured = Stats(await Run(encoder.EncoderPath, ["-hide_banner", "-nostats", "-i", raw, "-af", "loudnorm=I=-18:TP=-3:LRA=11:print_format=json", "-f", "null", "-"], ct));
-            var filter = string.Join(':', new[] { "loudnorm=I=-18", "TP=-3", "LRA=11",
-                "measured_I=" + measured.GetProperty("input_i").GetString(), "measured_TP=" + measured.GetProperty("input_tp").GetString(),
-                "measured_LRA=" + measured.GetProperty("input_lra").GetString(), "measured_thresh=" + measured.GetProperty("input_thresh").GetString(),
-                "offset=" + measured.GetProperty("target_offset").GetString(), "linear=true", "print_format=json" });
-            await Run(encoder.EncoderPath, ["-hide_banner", "-nostdin", "-y", "-i", raw, "-vn", "-af", filter, "-c:a", "libmp3lame", "-b:a", "192k", "-f", "mp3", destination], ct);
+            if (!double.TryParse(measured.GetProperty("input_i").GetString(), CultureInfo.InvariantCulture, out var loudness) || !double.IsFinite(loudness) ||
+                !double.TryParse(measured.GetProperty("input_tp").GetString(), CultureInfo.InvariantCulture, out var peak) || !double.IsFinite(peak))
+                throw new IOException("FFmpeg loudness analysis returned invalid measurements.");
+            var gain = FixedGain(loudness, peak).ToString("R", CultureInfo.InvariantCulture);
+            await Run(encoder.EncoderPath, ["-hide_banner", "-nostdin", "-y", "-i", raw, "-vn", "-af", $"volume={gain}dB", "-c:a", "libmp3lame", "-b:a", "192k", "-f", "mp3", destination], ct);
             if (!File.Exists(destination) || new FileInfo(destination).Length is 0 or > 15_000_000) throw new IOException("Converted audio is empty or too large.");
             var probe = await Run(encoder.ProbePath, ["-v", "error", "-select_streams", "a:0", "-show_entries", "stream=codec_name:format=duration", "-of", "json", destination], ct);
             using var info = JsonDocument.Parse(probe);

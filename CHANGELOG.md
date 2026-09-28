@@ -1,3 +1,10 @@
+## [0.1.1.0]
+
+### Fixed
+
+- Preserve theme music dynamics by applying one fixed gain per track, capped by true peak, instead of dynamic loudness normalization.
+- Select the first eligible recording when top-scoring soundtrack tracks tie instead of leaving the item without a theme.
+
 ## [0.1.0.0]
 
 ### Added
