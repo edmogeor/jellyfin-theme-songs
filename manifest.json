@@ -9,6 +9,14 @@
     "owner": "edmogeor",
     "versions": [
       {
+        "changelog": "### Fixed\n\n- Retry loading administrator translations after an initial failure so localized settings and diagnostics appear when the translations become available.\n\n",
+        "checksum": "7c44f07f1aa965a414c50cd702fb1d10",
+        "sourceUrl": "https://github.com/edmogeor/jellyscore/releases/download/v0.1.7.0/JellyScore.zip",
+        "targetAbi": "12.0.0.0",
+        "timestamp": "2026-09-28T12:25:42Z",
+        "version": "0.1.7.0"
+      },
+      {
         "changelog": "### Improved\n\n- Translate administrator-visible scan rejection reasons and refresh/delete errors in all supported languages while retaining detailed diagnostics for troubleshooting.\n- Display scan estimates with singular and plural minute labels, including \"Under 1 min\" for shorter estimates.\n\n",
         "checksum": "af8a540b2ad597e777b0fd3b90efb5d3",
         "sourceUrl": "https://github.com/edmogeor/jellyscore/releases/download/v0.1.6.0/JellyScore.zip",
