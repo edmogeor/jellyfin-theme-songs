@@ -1,3 +1,9 @@
+## [0.1.15.0]
+
+### Improved
+
+- Match the minimum-strength label to the Libraries heading, make its helper text quieter, and add more space above Save settings.
+
 ## [0.1.14.0]
 
 ### Improved
