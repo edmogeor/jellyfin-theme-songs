@@ -1,3 +1,9 @@
+## [0.1.14.0]
+
+### Improved
+
+- Remove the divider below automatic processing and give Save settings more breathing room.
+
 ## [0.1.13.0]
 
 ### Improved
