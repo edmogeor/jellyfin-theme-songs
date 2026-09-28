@@ -66,7 +66,9 @@ def scan_until(token, expected=None, expect_current=False):
             counts = ("added", "alreadyThemed", "excluded", "noMatch", "unsupported", "failed")
             assert sum(field(progress, key) for key in counts) == 5, f"scan counts disagree: {progress}"
             if field(progress, "excluded") + field(progress, "noMatch"):
-                assert field(progress, "rejections") and all(": " in item for item in field(progress, "rejections")), (
+                assert field(progress, "rejections") and all(
+                    field(item, "name") and field(item, "code") in english_strings for item in field(progress, "rejections")
+                ), (
                     f"scan omitted rejection reasons: {progress}"
                 )
             assert not expected or field(progress, expected) >= 1, f"Rescan finished without {expected}: {progress}"
@@ -119,6 +121,7 @@ assert status == 200, f"admin settings: {status}"
 assert settings.get("downloaderAvailable", settings.get("DownloaderAvailable")) is True, "bundled downloader missing"
 status, strings = request("GET", "/ThemeSongs/strings/en-us", token=token)
 assert status == 200 and strings["scanLibraries"] == "Scan libraries", f"English translations: {status} {strings}"
+english_strings = strings
 status, strings = request("GET", "/ThemeSongs/strings/fr", token=token)
 assert status == 200 and strings["scanLibraries"] == "Analyser les bibliothèques", f"French translations: {status} {strings}"
 status, _ = request("GET", "/ThemeSongs/strings/zz", token=token)
@@ -214,8 +217,8 @@ assert status == 200, f"list themes: {status}"
 assert all(field(item, "itemId") != user_theme["Id"] for item in field(downloads, "items")), (
     f"user-provided theme became managed: {downloads}"
 )
-status, _ = request("DELETE", f"/ThemeSongs/{user_theme['Id']}", token=token)
-assert status == 409, f"delete user-provided theme: {status}"
+status, error = request("DELETE", f"/ThemeSongs/{user_theme['Id']}", token=token)
+assert status == 409 and field(error, "code") == "themeUnavailable", f"delete user-provided theme: {status} {error}"
 subprocess.run(["docker", "compose", "-f", "tests/e2e/compose.yaml", "exec", "-T", "jellyfin", "cmp", "-s",
                 "/tmp/user-theme-original", "/media/movies/User Theme (2000)/theme.mp3"], check=True)
 dune = next((item for item in field(downloads, "items") if field(item, "name") == "Dune"), None)
@@ -262,10 +265,10 @@ subprocess.run(["docker", "compose", "-f", "tests/e2e/compose.yaml", "exec", "-T
                 'printf "%s" external-edit >> "$1"', "sh", field(dune, "path")], check=True)
 subprocess.run(["docker", "compose", "-f", "tests/e2e/compose.yaml", "exec", "-T", "jellyfin", "cp",
                 field(dune, "path"), "/tmp/edited-theme-original"], check=True)
-status, _ = request("POST", f"/ThemeSongs/{field(dune, 'itemId')}/refresh", token=token)
-assert status == 409, f"refresh externally edited theme: {status}"
-status, _ = request("DELETE", f"/ThemeSongs/{field(dune, 'itemId')}", token=token)
-assert status == 409, f"delete externally edited theme: {status}"
+status, error = request("POST", f"/ThemeSongs/{field(dune, 'itemId')}/refresh", token=token)
+assert status == 409 and field(error, "code") == "themeChanged", f"refresh externally edited theme: {status} {error}"
+status, error = request("DELETE", f"/ThemeSongs/{field(dune, 'itemId')}", token=token)
+assert status == 409 and field(error, "code") == "themeChanged", f"delete externally edited theme: {status} {error}"
 subprocess.run(["docker", "compose", "-f", "tests/e2e/compose.yaml", "exec", "-T", "jellyfin", "cmp", "-s",
                 "/tmp/edited-theme-original", field(dune, "path")], check=True)
 status, downloads = request("GET", "/ThemeSongs/downloads", token=token)

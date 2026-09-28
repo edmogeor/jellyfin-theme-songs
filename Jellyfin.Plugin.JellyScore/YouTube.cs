@@ -291,8 +291,13 @@ public static partial class Matcher
         return candidate;
     }
 
-    public static string RejectionReason(Work work, IEnumerable<Video> videos, IReadOnlySet<string> excludedVideos, IReadOnlySet<string> excludedRecordings)
+    // ReSharper disable once UnusedMember.Global
+    public static string RejectionReason(Work work, IEnumerable<Video> videos, IReadOnlySet<string> excludedVideos, IReadOnlySet<string> excludedRecordings) =>
+        RejectionReason(work, videos, excludedVideos, excludedRecordings, out _);
+
+    public static string RejectionReason(Work work, IEnumerable<Video> videos, IReadOnlySet<string> excludedVideos, IReadOnlySet<string> excludedRecordings, out string code)
     {
+        code = "reasonNoMatch";
         var reasons = new List<string>();
         var eligible = new List<Choice>();
         foreach (var video in videos)
@@ -304,12 +309,26 @@ public static partial class Matcher
         if (eligible.Count > 0)
         {
             if (eligible.All(c => excludedVideos.Contains(c.Video.Id) || excludedRecordings.Contains(c.Recording)))
+            {
+                code = "reasonPreviouslyUsed";
                 return "Only previously used recordings were found";
+            }
             return "Eligible recordings were found";
         }
-        if (reasons.Count == 0) return "No search results passed the title and duration shortlist";
-        var counts = reasons.GroupBy(reason => reason).OrderByDescending(group => group.Count())
-            .Take(3).Select(group => $"{group.Count()} {group.Key}");
+        if (reasons.Count == 0) { code = "reasonNoResults"; return "No search results passed the title and duration shortlist"; }
+        var groups = reasons.GroupBy(reason => reason).OrderByDescending(group => group.Count()).ToArray();
+        code = groups[0].Key switch
+        {
+            "Duration is missing or outside the theme range" => "reasonDuration",
+            "Cover, remix, sequel, or other excluded format" => "reasonExcludedFormat",
+            "Soundtrack belongs to a different sequel" or "Different release year or adaptation" or
+                "Release year missing for an ambiguous title" => "reasonEdition",
+            "Title or description does not identify this work" => "reasonWrongWork",
+            "Neither the title nor a matching soundtrack identifies this as music" => "reasonNotMusic",
+            "Ranking score is too low" => "reasonLowScore",
+            _ => "reasonNoMatch"
+        };
+        var counts = groups.Take(3).Select(group => $"{group.Count()} {group.Key}");
         return $"Rejected {reasons.Count} candidates: {string.Join("; ", counts)}";
     }
 

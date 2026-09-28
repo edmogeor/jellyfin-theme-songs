@@ -1,3 +1,10 @@
+## [0.1.6.0]
+
+### Improved
+
+- Translate administrator-visible scan rejection reasons and refresh/delete errors in all supported languages while retaining detailed diagnostics for troubleshooting.
+- Display scan estimates with singular and plural minute labels, including "Under 1 min" for shorter estimates.
+
 ## [0.1.5.0]
 
 ### Improved

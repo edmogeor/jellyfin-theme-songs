@@ -69,16 +69,30 @@ public sealed class ThemeController(ThemeService themes, ThemeScan scan, ITaskMa
     [HttpPost("{id:guid}/refresh")]
     public async Task<IActionResult> Refresh(Guid id, CancellationToken ct)
     {
-        try { return Ok(new { Result = await themes.Process(id, true, ct) }); }
-        catch (InvalidOperationException e) { return Conflict(new { Error = e.Message }); }
-        catch (Exception e) when (e is IOException or SearchFailure) { return UnprocessableEntity(new { Error = e.Message }); }
+        try { return Ok(new { (await themes.Process(id, true, ct)).Result }); }
+        catch (InvalidOperationException e) { return Conflict(new { Error = e.Message, Code = ErrorCode(e, "refreshFailed") }); }
+        catch (Exception e) when (e is IOException or SearchFailure) { return UnprocessableEntity(new { Error = e.Message, Code = ErrorCode(e, "refreshFailed") }); }
     }
 
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         try { await themes.Delete(id, ct); return NoContent(); }
-        catch (InvalidOperationException e) { return Conflict(new { Error = e.Message }); }
-        catch (IOException e) { return UnprocessableEntity(new { Error = e.Message }); }
+        catch (InvalidOperationException e) { return Conflict(new { Error = e.Message, Code = ErrorCode(e, "deleteFailed") }); }
+        catch (IOException e) { return UnprocessableEntity(new { Error = e.Message, Code = ErrorCode(e, "deleteFailed") }); }
     }
+
+    private static string ErrorCode(Exception e, string fallback) => e.Message switch
+    {
+        "Theme changed elsewhere. The file was left untouched." or "Theme changed elsewhere. It was not deleted." or
+            "Theme changed during download. The file was left untouched." => "themeChanged",
+        "Another theme appeared. The file was left untouched." => "anotherTheme",
+        "No managed theme to refresh." or "No managed theme." or "Item no longer exists." => "themeUnavailable",
+        "Item is not in a selected library." or "Unsupported item." or "Movie needs a dedicated physical folder." or
+            "Item needs a physical folder inside its library." or "Item folder is missing or unwritable." => "themeLocationUnavailable",
+        "Item title is not ready; retry after metadata refresh." => "itemNotReady",
+        _ when e is SearchFailure => "searchFailed",
+        _ when e is DownloadFailure => "downloadFailed",
+        _ => fallback
+    };
 }

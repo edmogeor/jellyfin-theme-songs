@@ -62,6 +62,8 @@ check(Matcher.RejectionReason(work, [original], new HashSet<string>(), new HashS
     "Only previously used recordings were found", "excluded recording has distinct reason");
 check(Matcher.RejectionReason(work, [video("bbbbbbbbbbb", "Dune 1984 Main Theme", "")], new HashSet<string>(), new HashSet<string>()).Contains("Different release year"),
     "rejected edition reports why");
+Matcher.RejectionReason(work, [video("bbbbbbbbbbb", "Dune 1984 Main Theme", "")], new HashSet<string>(), new HashSet<string>(), out var rejectionCode);
+check(rejectionCode == "reasonEdition", "rejection also has a localized UI code");
 var oak = new Work("The End of Oak Street", null, 2026, false);
 var tutorial = new Video("GneFZPhfN7o", "The End of Oak Street – Main Theme | Piano Tutorial (Synthesia)",
     "Learn how to play the Main Theme from The End of Oak Street (2026) on piano with this Synthesia tutorial.", "Noud van Harskamp", 123);

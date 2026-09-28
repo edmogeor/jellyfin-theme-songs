@@ -580,8 +580,13 @@
         });
         if (!response.ok) {
           const body = await response.json().catch(() => ({}));
-          const error = Error(body.Error || response.statusText);
+          const error = Error(
+            strings
+              ? t(body.Code && strings[body.Code] ? body.Code : "requestFailed")
+              : "Request failed. Please retry.",
+          );
           error.status = response.status;
+          error.localized = true;
           throw error;
         }
         return response.status === 204
@@ -614,8 +619,14 @@
         e.status === 503 || e.message === "Failed to fetch";
       const silent = (e) =>
         temporary(e) || e.status === 401 || e.status === 403;
+      const userError = (e) =>
+        e.localized
+          ? e.message
+          : strings
+            ? t("requestFailed")
+            : "Request failed. Please retry.";
       const showError = (e) => {
-        if (!silent(e)) toast(e.message);
+        if (!silent(e)) toast(userError(e));
       };
       const load = (fn) =>
         fn().catch((e) => {
@@ -708,7 +719,7 @@
           error.append(icon("error_outline"), errorText);
           const showRowError = (e) => {
             if (!silent(e)) {
-              errorText.textContent = e.message;
+              errorText.textContent = userError(e);
               error.hidden = false;
             }
           };
@@ -756,7 +767,7 @@
                     Replaced: "replaced",
                     "No replacement found": "noReplacement",
                     "Already themed": "alreadyThemed",
-                  }[result] || result,
+                  }[result] || "requestFailed",
                 ),
               );
               await load(rows);
@@ -821,12 +832,15 @@
           bar.value = data.Total
             ? Math.round((100 * data.Processed) / data.Total)
             : 0;
+        const minutes = Math.ceil(data.RemainingSeconds / 60);
         const estimate =
           data.Running && data.RemainingSeconds != null
             ? " · " +
               (data.RemainingSeconds < 60
                 ? t("lessThanMinute")
-                : t("aboutMinutes", Math.ceil(data.RemainingSeconds / 60)))
+                : minutes === 1
+                  ? t("aboutMinute")
+                  : t("aboutMinutes", minutes))
             : "";
         $("#themeProgress").textContent =
           (data.Total
@@ -856,7 +870,10 @@
           const list = document.createElement("ul");
           for (const reason of data.Rejections) {
             const item = document.createElement("li");
-            item.textContent = reason;
+            item.textContent =
+              reason.Name +
+              ": " +
+              t(strings?.[reason.Code] ? reason.Code : "reasonNoMatch");
             list.append(item);
           }
           rejections.append(heading, list);

@@ -10,6 +10,8 @@ using MediaBrowser.Model.IO;
 
 namespace Jellyfin.Plugin.JellyScore;
 
+public sealed record ThemeResult(string Result, string? ReasonCode = null);
+
 public sealed class ThemeService(ILibraryManager library, IProviderManager providers, IFileSystem fileSystem, IMediaEncoder encoder, Store store, YouTube youtube)
 {
     private readonly ConcurrentDictionary<Guid, SemaphoreSlim> _locks = new();
@@ -125,7 +127,7 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
 
     private void Refresh(BaseItem item) => providers.QueueRefresh(item.Id, new MetadataRefreshOptions(new DirectoryService(fileSystem)), RefreshPriority.High);
 
-    public async Task<string> Process(Guid id, bool replacement, CancellationToken ct)
+    public async Task<ThemeResult> Process(Guid id, bool replacement, CancellationToken ct)
     {
         var gate = _locks.GetOrAdd(id, _ => new SemaphoreSlim(1));
         await gate.WaitAsync(ct);
@@ -136,9 +138,9 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
             var existing = store.Read(s => s.Themes.GetValueOrDefault(id));
             if (replacement && existing is null) throw new InvalidOperationException("No managed theme to refresh.");
             if (existing is not null && !Owned(existing, item, folder)) throw new InvalidOperationException("Theme changed elsewhere. The file was left untouched.");
-            if (!replacement && existing is not null) return "Already themed";
-            if (!replacement && store.Read(s => s.Suppressed.Contains(id))) return "Suppressed until rescan";
-            if (OtherTheme(item, folder, existing?.Path)) return "Already themed";
+            if (!replacement && existing is not null) return new("Already themed");
+            if (!replacement && store.Read(s => s.Suppressed.Contains(id))) return new("Suppressed until rescan");
+            if (OtherTheme(item, folder, existing?.Path)) return new("Already themed");
             if (string.IsNullOrWhiteSpace(item.Name)) throw new InvalidOperationException("Item title is not ready; retry after metadata refresh.");
             var work = new Work(item.Name, item.OriginalTitle, item.ProductionYear, item is Series);
             var excludedIds = store.Read(s => new HashSet<string>(s.ExcludedVideos.GetValueOrDefault(id) ?? []));
@@ -169,11 +171,11 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
             }
             if (choice is null)
             {
-                var reason = Matcher.RejectionReason(work, videos, excludedIds, excludedRecordings);
+                var reason = Matcher.RejectionReason(work, videos, excludedIds, excludedRecordings, out var reasonCode);
                 var excluded = reason == "Only previously used recordings were found";
                 var result = replacement ? "No replacement found" : excluded ? "Previously used recording excluded" : "No match found";
                 store.Change(s => s.Outcomes[id] = excluded ? result : result + ": " + reason);
-                return result;
+                return new(result, reasonCode);
             }
             var path = Path.Combine(folder, "theme.mp3");
             for (var sourceAttempt = 0; sourceAttempt < 2; sourceAttempt++)
@@ -210,7 +212,7 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
                         s.Outcomes[id] = result;
                     });
                     Refresh(item);
-                    return result;
+                    return new(result);
                 }
                 finally { if (File.Exists(temporary)) File.Delete(temporary); }
             }

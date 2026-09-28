@@ -99,7 +99,7 @@ public sealed class ScanStatus
     public int AlreadyThemed { get; set; }
     public int Excluded { get; set; }
     public int NoMatch { get; set; }
-    public string[] Rejections { get; set; } = [];
+    public ScanRejection[] Rejections { get; set; } = [];
     public int Unsupported { get; set; }
     public int Failed { get; set; }
     // ReSharper disable once UnusedMember.Global
@@ -116,6 +116,10 @@ public sealed class ScanStatus
     }
 }
 // ReSharper restore UnusedAutoPropertyAccessor.Global
+
+// ReSharper disable NotAccessedPositionalProperty.Global
+public sealed record ScanRejection(string Name, string Code);
+// ReSharper restore NotAccessedPositionalProperty.Global
 
 // ReSharper disable once ClassNeverInstantiated.Global
 public sealed class ThemeScan(ILibraryManager library, ThemeService themes, Store store, ILogger<ThemeScan> logger) : IScheduledTask
@@ -159,12 +163,15 @@ public sealed class ThemeScan(ILibraryManager library, ThemeService themes, Stor
                         var result = await themes.Process(item.Id, false, token);
                         lock (status)
                         {
-                            if (result == "Added") status.Added++;
-                            else if (result == "Already themed") status.AlreadyThemed++;
-                            else if (result == "Previously used recording excluded") status.Excluded++;
+                            if (result.Result == "Added") status.Added++;
+                            else if (result.Result == "Already themed") status.AlreadyThemed++;
+                            else if (result.Result == "Previously used recording excluded") status.Excluded++;
                             else status.NoMatch++;
-                            if (result is "No match found" or "Previously used recording excluded")
-                                status.Rejections = [.. status.Rejections.TakeLast(4), item.Name + ": " + themes.Outcome(item.Id)];
+                            if (result.ReasonCode is { } code)
+                            {
+                                status.Rejections = [.. status.Rejections.TakeLast(4), new ScanRejection(item.Name, code)];
+                                logger.LogDebug("Skipped {ItemId}: {Reason}", item.Id, themes.Outcome(item.Id));
+                            }
                         }
                     }
                     catch (InvalidOperationException) { lock (status) status.Unsupported++; }
