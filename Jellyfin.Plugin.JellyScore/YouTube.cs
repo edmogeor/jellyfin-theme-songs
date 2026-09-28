@@ -319,8 +319,7 @@ public static partial class Matcher
             if (mainThemes.Length > 0) choices = mainThemes;
             else if (closingThemes.Length > 0) choices = closingThemes;
         }
-        var recordings = choices.GroupBy(c => c.Recording).Select(g => g.OrderByDescending(c => c.Score).First())
-            .OrderByDescending(c => c.Score).ToArray();
+        var recordings = choices.OrderByDescending(c => c.Score).DistinctBy(c => c.Recording).Take(2).ToArray();
         return recordings.Length > 0 && (recordings.Length == 1 || recordings[0].Score > recordings[1].Score) ? recordings[0] : null;
     }
 }
