@@ -96,6 +96,21 @@ check(Matcher.Evaluate(harry, video("ccccccccccc", "Hedwig's Theme", "Theme from
 check(Matcher.Evaluate(harry, video("ccccccccccc", "Hedwig's Theme", "", 309)) is null,
     "search term alone does not establish which film a named track belongs to");
 var office = new Work("The Office (US)", null, 2005, true);
+var supernatural = new Work("Supernatural", null, 2005, true);
+var deathScene = video("5EcsBgxXDqc", "Death's Intro... Supernatural S5E21", "", 120);
+var supernaturalOpening = video("bbbbbbbbbbb", "Supernatural S5E21 Opening Theme", "", 20);
+check(!Matcher.Promising(supernatural, deathScene) && Matcher.Evaluate(supernatural, deathScene) is null,
+    "episode character intro is neither shortlisted nor eligible as the series theme");
+check(Matcher.Promising(supernatural, supernaturalOpening) && Matcher.Evaluate(supernatural, supernaturalOpening) is not null,
+    "episode number alone does not exclude a genuine series opening");
+check(Matcher.Evaluate(supernatural, video("ccccccccccc", "Supernatural Opening Scene", "", 120)) is null,
+    "opening scene is not theme music");
+check(Matcher.Select(supernatural, [deathScene, supernaturalOpening], new HashSet<string>(), new HashSet<string>())?.Video.Id == supernaturalOpening.Id,
+    "series opening wins instead of episode scene");
+var plainIntro = video("ddddddddddd", "Supernatural Intro", "", 70);
+var explicitTheme = video("eeeeeeeeeee", "Supernatural Theme Song", "", 70);
+check(Matcher.Select(supernatural, [plainIntro, explicitTheme], new HashSet<string>(), new HashSet<string>())?.Video.Id == explicitTheme.Id,
+    "explicit series theme scores above a bare intro");
 check(Matcher.Evaluate(office, video("bbbbbbbbbbb", "The Office (US) Opening Credits", "", 70)) is { Score: > 0 },
     "series with an explicit regional qualifier need not repeat the premiere year");
 check(Matcher.Evaluate(office, video("bbbbbbbbbbb", "The Office UK Opening Credits", "", 70)) is null,

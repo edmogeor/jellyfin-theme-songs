@@ -178,6 +178,12 @@ public static partial class Matcher
 
     [GeneratedRegex(@"\b(cover|remix|fan.?edit|extended|reaction|trailer|review|full album|compilation|livestream|live stream|karaoke|piano cover|tutorials?|how to play|game|parody|tribute|ranked|top\s?10)\b", RegexOptions.IgnoreCase)]
     private static partial Regex Reject();
+    [GeneratedRegex(@"\b(?:s\d{1,2}\s*e\d{1,3}|\d{1,2}x\d{1,3}|season\s+\d+\s+episode\s+\d+)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex EpisodeNumber();
+    [GeneratedRegex(@"\b(?:opening|intro(?:duction)?)\s+scene\b", RegexOptions.IgnoreCase)]
+    private static partial Regex IntroScene();
+    [GeneratedRegex(@"\b[\p{L}]+['’]s\s+intro(?:duction)?\b", RegexOptions.IgnoreCase)]
+    private static partial Regex CharacterIntro();
     [GeneratedRegex(@"\b(part two|part 2|sequel)\b", RegexOptions.IgnoreCase)]
     private static partial Regex Sequel();
     [GeneratedRegex(@"\b(opening|theme|main title|title sequence|credits|end title|intro|soundtrack|score|suite|overture|ost)\b", RegexOptions.IgnoreCase)]
@@ -195,6 +201,8 @@ public static partial class Matcher
 
     private static string Normal(string value) => Regex.Replace(value.ToLowerInvariant(), @"[^\p{L}\p{N}]+", " ").Trim();
     private static bool Contains(string text, string title) => (" " + Normal(text) + " ").Contains(" " + Normal(title) + " ", StringComparison.Ordinal);
+    private static bool EpisodeClip(string title) => IntroScene().IsMatch(title) ||
+        EpisodeNumber().IsMatch(title) && CharacterIntro().IsMatch(title);
 
     private static int? LinkedYear(Work work, string description)
     {
@@ -209,7 +217,7 @@ public static partial class Matcher
 
     public static bool Promising(Work work, Video video) =>
         (video.Seconds is not { } seconds || seconds is >= MinSeconds and <= MaxSeconds) &&
-        !Reject().IsMatch(video.Title) && (!Sequel().IsMatch(video.Title) || Sequel().IsMatch(work.Title)) &&
+        !Reject().IsMatch(video.Title) && !EpisodeClip(video.Title) && (!Sequel().IsMatch(video.Title) || Sequel().IsMatch(work.Title)) &&
         Theme().IsMatch(video.Title) &&
         (Contains(video.Title, work.Title) || work.OriginalTitle is not null && Contains(video.Title, work.OriginalTitle) || MainTheme().IsMatch(video.Title));
 
@@ -262,7 +270,8 @@ public static partial class Matcher
             album = lines[trackIndex + 1];
         var title = video.Title;
         var identityText = title + " " + album;
-        if (Reject().IsMatch(title) || Reject().IsMatch(album)) { reason = "Cover, remix, sequel, or other excluded format"; return null; }
+        if (Reject().IsMatch(title) || Reject().IsMatch(album) || EpisodeClip(title))
+        { reason = "Cover, remix, sequel, or other excluded format"; return null; }
         if (Sequel().IsMatch(identityText) && !Sequel().IsMatch(work.Title))
         { reason = "Soundtrack belongs to a different sequel"; return null; }
         var workTitles = new[] { work.Title, work.OriginalTitle }.Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
@@ -338,7 +347,8 @@ public static partial class Matcher
             .OfType<Choice>().Where(c => !excludedRecordings.Contains(c.Recording)).ToArray();
         if (work.Series)
         {
-            var openings = choices.Where(c => !Closing().IsMatch(c.Video.Title) && SeriesOpening().IsMatch(c.Video.Title)).ToArray();
+            var openings = choices.Where(c => !Closing().IsMatch(c.Video.Title) &&
+                (SeriesOpening().IsMatch(c.Video.Title) || Contains(c.Video.Title, "theme"))).ToArray();
             if (openings.Length > 0) choices = openings;
         }
         else

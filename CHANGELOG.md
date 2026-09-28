@@ -1,3 +1,10 @@
+## [0.1.8.0]
+
+### Fixed
+
+- Exclude episode character introductions and opening scenes from TV theme matches without rejecting openings merely labelled with an episode number.
+- Let explicit TV themes compete with openings and intros, so an otherwise equal theme song ranks above a bare intro.
+
 ## [0.1.7.0]
 
 ### Fixed
