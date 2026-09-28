@@ -1,0 +1,28 @@
+name: Feature Request
+description: Suggest an improvement to JellyScore
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please check existing issues first. JellyScore prioritizes avoiding false matches and preserving user-owned themes.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the use case and current limitation.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Explain what JellyScore should do and how it should handle existing theme files.
+    validations:
+      required: true
+  - type: textarea
+    id: examples
+    attributes:
+      label: Examples or alternatives
+      description: Include relevant movie or series examples and any workarounds you have tried.

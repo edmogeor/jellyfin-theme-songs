@@ -1,0 +1,14 @@
+name: General
+description: Discuss JellyScore and share feedback
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Share experiences and ideas about JellyScore. For reproducible bugs or concrete feature requests, please open an issue instead.
+  - type: textarea
+    id: discussion
+    attributes:
+      label: Discussion
+      description: What would you like to discuss?
+    validations:
+      required: true

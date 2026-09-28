@@ -1,0 +1,57 @@
+name: Bug Report
+description: Report a problem with JellyScore
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please check existing issues first. Redact tokens, cookies, and private file paths from logs before posting.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the problem and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Add a movie or series to a selected library...
+        2. Run a scan or refresh a managed theme...
+        3. See the result...
+    validations:
+      required: true
+  - type: textarea
+    id: media
+    attributes:
+      label: Relevant media details
+      description: Include the item title, year, movie or series, folder layout, and any source video link or scan rejection reason when relevant. Do not upload copyrighted media.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Jellyfin logs or screenshots
+      description: Include relevant excerpts with tokens, cookies, and private paths redacted.
+  - type: input
+    id: plugin-version
+    attributes:
+      label: JellyScore version
+      placeholder: 0.1.0.0
+    validations:
+      required: true
+  - type: input
+    id: jellyfin-version
+    attributes:
+      label: Jellyfin version
+      placeholder: 12.0.0
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Server platform
+      placeholder: Linux x64, Linux ARM64, Windows, macOS, or Docker
+    validations:
+      required: true

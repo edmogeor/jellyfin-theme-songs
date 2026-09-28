@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and discussion
+    url: https://github.com/edmogeor/jellyscore/discussions
+    about: Ask for help and share ideas in Discussions.
+  - name: Jellyfin documentation
+    url: https://jellyfin.org/docs/
+    about: For general Jellyfin setup and library questions.

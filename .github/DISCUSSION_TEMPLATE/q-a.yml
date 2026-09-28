@@ -1,0 +1,20 @@
+name: Q&A
+description: Ask about installing or using JellyScore
+body:
+  - type: input
+    id: jellyfin-version
+    attributes:
+      label: Jellyfin version
+      placeholder: 12.0.0
+  - type: input
+    id: plugin-version
+    attributes:
+      label: JellyScore version
+      placeholder: 0.1.0.0
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: Describe your library layout or scan result if relevant. Redact tokens, cookies, and private paths from logs.
+    validations:
+      required: true
