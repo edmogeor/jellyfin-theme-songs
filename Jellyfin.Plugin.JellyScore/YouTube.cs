@@ -286,10 +286,10 @@ public static partial class Matcher
         Theme().IsMatch(video.Title) &&
         (Contains(video.Title, work.Title) || work.OriginalTitle is not null && Contains(video.Title, work.OriginalTitle) || MainTheme().IsMatch(video.Title));
 
-    private static Choice Rank(Work work, Video video, string recording, bool soundtrackMatch, bool hasArtist = false)
+    private static Choice Rank(Work work, Video video, string recording, string album, int? linkedYear, bool soundtrackMatch, bool hasArtist = false)
     {
-        var title = video.Title.ToLowerInvariant();
-        var channel = video.Channel.ToLowerInvariant();
+        var title = video.Title;
+        var identity = title + " " + album;
         var evidence = new List<string>();
         var score = 0;
         void Add(int points, string source) { score += points; evidence.Add($"{source} {points:+#;-#;0}"); }
@@ -299,23 +299,26 @@ public static partial class Matcher
         {
             var words = Normal(work.Title).Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(w => w.Length > 3);
             var matchingWords = words.Count(w => Contains(video.Title, w));
-            if (matchingWords > 0) Add(8 * matchingWords, "Partial title");
+            if (matchingWords > 0) Add(Math.Min(16, 8 * matchingWords), "Partial title");
         }
-        if (title.Contains("main theme")) Add(20, "Main theme");
-        else if (title.Contains("theme")) Add(15, "Theme");
-        if (title.Contains("official")) Add(10, "Official in title");
-        if (title.Contains("soundtrack")) Add(12, "Soundtrack");
-        if (Contains(title, "ost")) Add(12, "OST");
-        if (title.Contains("original score")) Add(12, "Original score");
-        if (title.Contains("score")) Add(8, "Score");
-        if (title.Contains("original")) Add(5, "Original");
-        var minutes = video.Seconds!.Value / 60d;
-        if (minutes is >= 1 and <= 6) Add(15, "Duration");
-        else if (minutes is >= 0.5 and <= 10) Add(8, "Duration");
-        else Add(-20, "Duration");
-        if (new[] { "music", "records", "soundtrack", "score", "film", "cinema" }.Any(channel.Contains)) Add(8, "Music channel");
-        if (title.Contains("every ") || title.Contains("all ") && title.Contains("theme")) Add(-20, "Collection video");
-        if (soundtrackMatch) { Add(40, "Matching soundtrack album"); if (hasArtist) Add(10, "Track and artist"); }
+        if (work.Year is { } year)
+        {
+            if (Contains(identity, year.ToString(CultureInfo.InvariantCulture))) Add(30, "Edition year in title or album");
+            else if (video.ReleaseYear == year || linkedYear == year) Add(20, "Edition year in metadata");
+        }
+        if (work.Series ? SeriesEdition().IsMatch(identity) : FilmEdition().IsMatch(identity)) Add(20, "Matching film/TV edition");
+        if (Contains(title, "main theme") || Contains(title, "main title")) Add(20, "Main theme or title");
+        else if (Contains(title, "theme")) Add(15, "Theme");
+        if (!Closing().IsMatch(title) && SeriesOpening().IsMatch(title)) Add(12, "Opening or intro");
+        if (Contains(title, "soundtrack") || Contains(title, "ost") || Contains(title, "score")) Add(10, "Soundtrack label");
+        if (Contains(title, "official")) Add(5, "Official label");
+        if (soundtrackMatch) { Add(40, "Matching soundtrack track"); if (hasArtist) Add(15, "Identified artist"); }
+        if (video.Seconds is >= 30 and <= 360) Add(10, "Typical music duration");
+        else if (video.Seconds is < 30 && SeriesOpening().IsMatch(title)) Add(10, "Short opening");
+        else if (video.Seconds is < 30) Add(-10, "Very short recording");
+        else Add(5, "Long recording");
+        if (new[] { "music", "records", "soundtrack", "score", "film", "cinema" }.Any(s => video.Channel.Contains(s, StringComparison.OrdinalIgnoreCase))) Add(3, "Music channel");
+        if (title.Contains("every ", StringComparison.OrdinalIgnoreCase) || title.Contains("all ", StringComparison.OrdinalIgnoreCase) && Contains(title, "theme")) Add(-20, "Collection video");
         return new Choice(video, recording, score, string.Join("; ", evidence));
     }
 
@@ -366,8 +369,8 @@ public static partial class Matcher
         if (!Theme().IsMatch(title) && !soundtrackTrack)
         { reason = "Neither the title nor a matching soundtrack identifies this as music"; return null; }
         var candidate = soundtrackTrack
-            ? Rank(work, video, Normal(track!) + "|" + Normal(artist ?? "") + "|" + Normal(album) + "|" + work.Year, true, artist is not null)
-            : Rank(work, video, Normal(title) + "|" + work.Year, false);
+            ? Rank(work, video, Normal(track!) + "|" + Normal(artist ?? "") + "|" + Normal(album) + "|" + work.Year, album, linkedYear, true, artist is not null)
+            : Rank(work, video, Normal(title) + "|" + work.Year, album, linkedYear, false);
         if (candidate.Score <= 0) { reason = "Ranking score is too low"; return null; }
         return candidate;
     }

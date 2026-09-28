@@ -1,3 +1,10 @@
+## [0.1.11.0]
+
+### Improved
+
+- Give verified work years and matching film or TV editions more weight when ranking eligible themes, including short series openings.
+- Cap weak soundtrack labels and channel signals so promotional wording cannot outweigh stronger work evidence. Document the scoring weights and selection categories.
+
 ## [0.1.10.0]
 
 ### Fixed

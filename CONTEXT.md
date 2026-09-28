@@ -17,7 +17,20 @@ JellyScore is a Jellyfin 12 plugin that finds likely theme music on YouTube for 
 - Search uses the Jellyfin display title, original title when present, production year, and theme or soundtrack terms. Titles broaden retrieval; a search query alone never proves a candidate belongs to that work. Search results are shortlisted before full video metadata is fetched. A full-album tracklist can supply a search hint, but the album itself is not a theme candidate.
 - Reject mismatched works, years, adaptations, sequels, regional versions, covers, remixes, fan edits, tutorials, trailers, reviews, compilations, and full albums. Film-versus-TV soundtrack labels in the title or identified album indicate the wrong edition; incidental mentions of "movie" or "TV" in free-form descriptions do not. A series title attached to another named theme does not establish that the music belongs to the series. A named track can qualify when its title, soundtrack album, or description ties it to the correct work and edition. Missing edition evidence for an ambiguous title means no match. An upload older than the year before the work's production year cannot be its theme; a newer upload does not prove a match or establish the work's release year.
 - For example, do not use a UK Office opening for *The Office (US)* or a 1984 or Part Two track for *Dune* (2021). A recording titled "Hedwig's Theme" can still qualify for *Harry Potter and the Sorcerer's Stone* when its soundtrack metadata links it to that film.
-- Require a known duration of 10 seconds to 8 minutes for both series and movies. Rank eligible results using work and music evidence, duration, and channel signals. The score orders candidates; it is not a probability. For series, rank explicit themes alongside openings and intros, preferring them over other soundtrack tracks; an explicit theme scores higher than an otherwise equal bare intro. For movies, prefer main themes, then closing credits, then soundtrack tracks. Accept the highest-scoring eligible recording in the preferred category; when recordings tie, choose the first search result. Equivalent uploads of one recording remain interchangeable sources.
+- Require a known duration of 10 seconds to 8 minutes for both series and movies. First reject ineligible works, editions, dates, and formats; ranking cannot rescue a contradiction. Score the remaining candidates with additive evidence, not a probability:
+
+  | Evidence | Points |
+  | --- | ---: |
+  | Full work title in video title, or partial title words | +30, or up to +16 |
+  | Matching work year in title/album, or linked description/track metadata | +30, or +20 |
+  | Matching film/TV edition label in title or identified album | +20 |
+  | Main theme/title, theme, opening/intro | +20, +15, +12 (opening and theme can combine) |
+  | Identified track on matching soundtrack album, with named artist | +40, plus +15 |
+  | Soundtrack/OST/score label, official claim, music channel | +10 maximum, +5, +3 |
+  | Duration 30 seconds to 6 minutes, short opening, 6 to 8 minutes, other short recording | +10, +10, +5, -10 |
+  | Collection-style title | -20 |
+
+  For series, prefer the highest-scoring explicit theme, opening, or intro over other soundtrack tracks; an otherwise equal theme scores slightly above a bare intro. For movies, prefer main themes, then closing credits, then soundtrack tracks. Accept the highest-scoring eligible recording in the preferred category; when recordings tie, choose the first search result. Equivalent uploads of one recording remain interchangeable sources.
 - Incomplete searches, unavailable tools, and failed downloads are failures, not proof that no match exists. A complete search without an eligible recording reports a reason. Retry transient failures with bounds; a failed download may try one other eligible source without permanently blacklisting the failed upload.
 
 ## Audio and file ownership

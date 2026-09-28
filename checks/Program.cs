@@ -115,6 +115,9 @@ var plainIntro = video("ddddddddddd", "Supernatural Intro", "", 70);
 var explicitTheme = video("eeeeeeeeeee", "Supernatural Theme Song", "", 70);
 check(Matcher.Select(supernatural, [plainIntro, explicitTheme], new HashSet<string>(), new HashSet<string>())?.Video.Id == explicitTheme.Id,
     "explicit series theme scores above a bare intro");
+check(Matcher.Evaluate(supernatural, explicitTheme with { Title = "Supernatural Original Soundtrack OST Official Theme Song" })!.Score -
+    Matcher.Evaluate(supernatural, explicitTheme)!.Score == 15,
+    "weak soundtrack labels count once and official claims contribute only a small bonus");
 check(Matcher.Evaluate(office, video("bbbbbbbbbbb", "The Office (US) Opening Credits", "", 70)) is { Score: > 0 },
     "series with an explicit regional qualifier need not repeat the premiere year");
 check(Matcher.Evaluate(office, video("bbbbbbbbbbb", "The Office UK Opening Credits", "", 70)) is null,
@@ -133,9 +136,16 @@ var vampireSoundtrack = new Video("NWTRlUYij6M", "Come to Me | Interview with th
 var vampireFilm = new Work("Interview with the Vampire", null, 1994, false);
 var filmSoundtrack = video("bbbbbbbbbbb", "Interview with the Vampire Theme", "Album: Interview with the Vampire (Original Motion Picture Soundtrack)");
 check(Matcher.Evaluate(vampire, filmSoundtrack) is null, "1994 film soundtrack album cannot qualify for the TV series without a year");
+check(Matcher.Evaluate(vampire, video("bbbbbbbbbbb", "Interview with the Vampire 2022 Official Main Theme Original Motion Picture Soundtrack", "")) is null,
+    "a matching year and high-scoring words cannot override a conflicting film edition");
 check(Matcher.Evaluate(vampireFilm, filmSoundtrack) is not null, "film soundtrack remains eligible for the film");
 check(Matcher.Evaluate(vampireFilm, vampireSoundtrack) is null, "TV soundtrack cannot qualify for the film without a year");
 check(Matcher.Evaluate(vampire, vampireSoundtrack) is not null, "TV soundtrack remains eligible for the series");
+var genericVampireTheme = new Video("bbbbbbbbbbb", "Interview with the Vampire Official Original Soundtrack OST Main Theme", "", "Music Channel", 159);
+check(Matcher.Evaluate(vampire, genericVampireTheme) is not null && Matcher.Evaluate(vampire, vampireOpening)!.Score > Matcher.Evaluate(vampire, genericVampireTheme)!.Score,
+    "the verified series opening ranks above an eligible title padded with promotional words");
+check(Matcher.Select(vampire, [genericVampireTheme, vampireOpening], new HashSet<string>(), new HashSet<string>())?.Video.Id == vampireOpening.Id,
+    "an edition-specific short opening beats a longer generic theme with stacked promotional words");
 check(Matcher.Evaluate(vampire, video("bbbbbbbbbbb", "Interview with the Vampire 2022 Opening", "My first movie edit")) is not null,
     "an incidental movie mention in a description does not override the TV edition");
 var namedTvTheme = video("bbbbbbbbbbb", "Come to Me Theme | Interview with the Vampire",
@@ -164,10 +174,8 @@ check(Matcher.Evaluate(new Work("Breaking Bad", null, 2008, true), video("bbbbbb
     "other named themes are rejected independently of the series title");
 check(Matcher.Evaluate(supernatural, explicitTheme) is not null, "a plain series theme without another named work remains eligible");
 check(Matcher.Promising(vampire, vampireOpening), "the short 2022 opening reaches full metadata evaluation");
-check(Matcher.Evaluate(vampire, vampireOpening)?.Score < Matcher.Evaluate(vampire, vampireSoundtrack)?.Score,
-    "the short opening scores below a full soundtrack track");
 check(Matcher.Select(vampire, [vampireSoundtrack, vampireOpening], new HashSet<string>(), new HashSet<string>())?.Video.Id == vampireOpening.Id,
-    "series opening wins over a higher-scoring soundtrack track");
+    "series opening wins over a soundtrack track");
 check(Matcher.Select(vampire, [vampireSoundtrack], new HashSet<string>(), new HashSet<string>())?.Video.Id == vampireSoundtrack.Id,
     "soundtrack track remains a fallback when no opening is found");
 check(Matcher.Evaluate(vampire, video("7jLOWfP3Lmc", "Interview with the Vampire - Opening",
