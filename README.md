@@ -34,7 +34,7 @@ JellyScore automatically downloads theme music from YouTube for your movies and 
 3. Open JellyScore. All libraries are selected by default, but you can choose which to include or turn off automatic scans.
 4. JellyScore checks new items as they are added and runs after Jellyfin's next library scan. Select **Scan libraries** to search now. Installing the plugin does not start a scan.
 
-Jellyfin needs permission to write to your media folders and plugin configuration directory. Each movie needs its own folder. On first use JellyScore downloads and verifies the YouTube download tool for your server's platform, so GitHub must be reachable, but you do not need an API key. Later searches reuse the cached tool.
+Jellyfin needs permission to write to your media folders and plugin configuration directory. Each movie needs its own folder. On first use JellyScore downloads and verifies [yt-dlp](https://github.com/yt-dlp/yt-dlp) for your server's platform from its official releases, so GitHub must be reachable, but you do not need an API key. Later searches reuse the cached tool.
 
 ## Manage your theme music
 
@@ -71,3 +71,5 @@ Feel free to donate if you'd like to support development.
 ## License
 
 Copyright © 2026 George Edmonds. Licensed under [GPL-3.0-or-later](LICENSE).
+
+JellyScore uses [yt-dlp](https://github.com/yt-dlp/yt-dlp). Its Git repository is [Unlicense](https://github.com/yt-dlp/yt-dlp/blob/master/LICENSE), while its standalone executables bundle other components and are GPLv3+ as a combined work. See [yt-dlp's licensing details](https://github.com/yt-dlp/yt-dlp#licensing).

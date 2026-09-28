@@ -9,6 +9,10 @@ void check(bool condition, string reason) { if (!condition) throw new Exception(
 
 var original = video("aaaaaaaaaaa", "Dune Main Theme", licensed);
 check(Matcher.Evaluate(work, original) is { Score: > 0 }, "soundtrack theme accepted");
+check(Matcher.Evaluate(work, original with { UploadDate = new DateOnly(2019, 12, 31) }) is null,
+    "film uploads predating the previous calendar year are rejected");
+check(Matcher.Evaluate(work, original with { UploadDate = new DateOnly(2020, 1, 1) }) is not null,
+    "previous-year film promotion remains eligible");
 check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune Part Two Main Theme", licensed)) is null, "sequel rejected");
 var partTwo = new Work("Dune: Part Two", null, 2024, false);
 var partTwoVideo = video("COELrJTyosw", "Dune: Part Two Soundtrack | Only I Will Remain - Hans Zimmer | WaterTower", "Only I Will Remain, from the Official Soundtrack of Dune: Part Two", 404);
@@ -126,6 +130,39 @@ var vampire = new Work("Interview with the Vampire", null, 2022, true);
 var vampireOpening = new Video("JPeuE8uh9FY", "Interview with the Vampire (1 season) | 2022 | Opening", "", "Илья Якуба", 22, ReleaseYear: 2022);
 var vampireSoundtrack = new Video("NWTRlUYij6M", "Come to Me | Interview with the Vampire (Original Television Series Soundtrack)",
     "Music video by Daniel Hart performing Come to Me. (C) 2022 AMC Film Holdings LLC", "SonySoundtracksVEVO", 159);
+var vampireFilm = new Work("Interview with the Vampire", null, 1994, false);
+var filmSoundtrack = video("bbbbbbbbbbb", "Interview with the Vampire Theme", "Album: Interview with the Vampire (Original Motion Picture Soundtrack)");
+check(Matcher.Evaluate(vampire, filmSoundtrack) is null, "1994 film soundtrack album cannot qualify for the TV series without a year");
+check(Matcher.Evaluate(vampireFilm, filmSoundtrack) is not null, "film soundtrack remains eligible for the film");
+check(Matcher.Evaluate(vampireFilm, vampireSoundtrack) is null, "TV soundtrack cannot qualify for the film without a year");
+check(Matcher.Evaluate(vampire, vampireSoundtrack) is not null, "TV soundtrack remains eligible for the series");
+check(Matcher.Evaluate(vampire, video("bbbbbbbbbbb", "Interview with the Vampire 2022 Opening", "My first movie edit")) is not null,
+    "an incidental movie mention in a description does not override the TV edition");
+var namedTvTheme = video("bbbbbbbbbbb", "Come to Me Theme | Interview with the Vampire",
+    "Music from Interview with the Vampire 2022 Original Television Series Soundtrack");
+check(Matcher.Evaluate(vampire, namedTvTheme) is not null,
+    "a named track linked to the correct TV edition in its description remains eligible");
+check(Matcher.Evaluate(vampire, namedTvTheme with { Description = "Music from Interview with the Vampire" }) is null,
+    "a named theme without edition evidence remains uncertain");
+var vampireFanEdit = new Video("vldqvBpuACY", "Interview With The Vampire Requiem For A Dream Theme Song",
+    "Interview With The Vampire Requiem For A Dream Theme. My first movie :). I put Lestat at the end not because I don't like him, but because I wanted him to appear when the powerful music starts.", "summerrainnnn", 364,
+    UploadDate: new DateOnly(2010, 2, 27));
+check(Matcher.Evaluate(vampire, vampireFanEdit with { UploadDate = null }) is null,
+    "another work's named theme cannot pass as the TV series theme even without an upload date");
+check(Matcher.Evaluate(vampire, vampireFanEdit) is null, "the 2010 fan edit cannot be the 2022 TV series theme");
+check(Matcher.Evaluate(vampire, video("bbbbbbbbbbb", "Interview with the Vampire Theme Song", "") with { UploadDate = new DateOnly(2010, 2, 27) }) is null,
+    "an otherwise plausible upload from before the TV series was made is rejected");
+check(Matcher.Evaluate(vampire, video("bbbbbbbbbbb", "Interview with the Vampire Theme Song", "") with { UploadDate = new DateOnly(2020, 12, 31) }) is null,
+    "uploads older than the previous calendar year are too early");
+check(Matcher.Evaluate(vampire, video("bbbbbbbbbbb", "Interview with the Vampire Theme Song", "") with { UploadDate = new DateOnly(2021, 1, 1) }) is not null,
+    "previous-year promotional uploads remain eligible without a precise premiere date");
+check(Matcher.Evaluate(vampire, video("bbbbbbbbbbb", "Interview with the Vampire Theme Song", "")) is not null,
+    "missing upload dates are not treated as negative evidence");
+check(Matcher.Select(vampire, [vampireFanEdit, vampireOpening], new HashSet<string>(), new HashSet<string>())?.Video.Id == vampireOpening.Id,
+    "TV opening wins when a high-scoring fan edit borrows music from another work");
+check(Matcher.Evaluate(new Work("Breaking Bad", null, 2008, true), video("bbbbbbbbbbb", "Breaking Bad Better Call Saul Theme Song", "")) is null,
+    "other named themes are rejected independently of the series title");
+check(Matcher.Evaluate(supernatural, explicitTheme) is not null, "a plain series theme without another named work remains eligible");
 check(Matcher.Promising(vampire, vampireOpening), "the short 2022 opening reaches full metadata evaluation");
 check(Matcher.Evaluate(vampire, vampireOpening)?.Score < Matcher.Evaluate(vampire, vampireSoundtrack)?.Score,
     "the short opening scores below a full soundtrack track");

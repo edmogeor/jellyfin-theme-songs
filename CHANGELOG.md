@@ -1,3 +1,11 @@
+## [0.1.10.0]
+
+### Fixed
+
+- Reject TV theme uploads that borrow another work's named music, including an *Interview with the Vampire* fan edit uploaded before the 2022 series existed.
+- Distinguish film and TV soundtrack editions using titles and identified albums without treating incidental words in descriptions as edition evidence.
+- Keep named TV tracks eligible when their description explicitly links them to the correct series and year.
+
 ## [0.1.9.0]
 
 ### Improved

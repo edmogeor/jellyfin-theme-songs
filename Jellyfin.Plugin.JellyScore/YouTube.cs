@@ -2,12 +2,13 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Globalization;
 
 namespace Jellyfin.Plugin.JellyScore;
 
 public sealed record Work(string Title, string? OriginalTitle, int? Year, bool Series);
 public sealed record Video(string Id, string Title, string Description, string Channel, int? Seconds,
-    string? Album = null, string? Track = null, string? Artist = null, int? ReleaseYear = null);
+    string? Album = null, string? Track = null, string? Artist = null, int? ReleaseYear = null, DateOnly? UploadDate = null);
 public sealed record Choice(Video Video, string Recording, int Score, string Evidence);
 
 public sealed class SearchFailure(string message) : Exception(message);
@@ -197,11 +198,13 @@ public sealed class YouTube
     private static Video Parse(JsonElement item)
     {
         var duration = item.TryGetProperty("duration", out var value) && value.ValueKind == JsonValueKind.Number ? value.GetDouble() : 0;
+        var uploaded = DateOnly.TryParseExact(Text(item, "upload_date"), "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
+            ? date : (DateOnly?)null;
         return new Video(item.GetProperty("id").GetString()!, item.GetProperty("title").GetString()!,
             item.TryGetProperty("description", out value) ? value.GetString() ?? "" : "",
             item.TryGetProperty("channel", out value) ? value.GetString() ?? "" : "", duration > 0 ? (int)duration : null,
             Text(item, "album"), Text(item, "track"), Text(item, "artist"),
-            item.TryGetProperty("release_year", out value) && value.ValueKind == JsonValueKind.Number ? value.GetInt32() : null);
+            item.TryGetProperty("release_year", out value) && value.ValueKind == JsonValueKind.Number ? value.GetInt32() : null, uploaded);
     }
 
     private static string? Text(JsonElement item, string key) => item.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
@@ -247,11 +250,24 @@ public static partial class Matcher
     private static partial Regex AlbumLine();
     [GeneratedRegex(@"\b(19\d{2}|20\d{2})\b")]
     private static partial Regex Years();
+    [GeneratedRegex(@"\b(?:motion picture|(?:movie|film)\s+(?:soundtrack|score|theme|opening|ost))\b", RegexOptions.IgnoreCase)]
+    private static partial Regex FilmEdition();
+    [GeneratedRegex(@"\b(?:(?:tv|television)\s+series|(?:tv|television)\s+(?:soundtrack|score|theme|opening|ost))\b", RegexOptions.IgnoreCase)]
+    private static partial Regex SeriesEdition();
 
     private static string Normal(string value) => Regex.Replace(value.ToLowerInvariant(), @"[^\p{L}\p{N}]+", " ").Trim();
     private static bool Contains(string text, string title) => (" " + Normal(text) + " ").Contains(" " + Normal(title) + " ", StringComparison.Ordinal);
     private static bool EpisodeClip(string title) => IntroScene().IsMatch(title) ||
         EpisodeNumber().IsMatch(title) && CharacterIntro().IsMatch(title);
+    private static bool OtherNamedTheme(Work work, Video video)
+    {
+        if (!work.Series || !Regex.IsMatch(video.Title, @"\btheme\b", RegexOptions.IgnoreCase)) return false;
+        var remainder = " " + Normal(video.Title) + " ";
+        foreach (var title in new[] { work.Title, work.OriginalTitle }.Where(s => !string.IsNullOrWhiteSpace(s)))
+            remainder = remainder.Replace(" " + Normal(title!) + " ", " ", StringComparison.Ordinal);
+        remainder = Regex.Replace(remainder, @"\b(?:\d+|official|original|main|theme|song|opening|intro|title|credits|soundtrack|score|ost|tv|television|series|season)\b", " ");
+        return remainder.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length >= 3;
+    }
 
     private static int? LinkedYear(Work work, string description)
     {
@@ -312,6 +328,8 @@ public static partial class Matcher
         reason = "";
         if (video.Seconds is not { } length || length is < MinSeconds or > MaxSeconds)
         { reason = "Duration is missing or outside the theme range"; return null; }
+        if (work.Year is { } workYear && video.UploadDate is { Year: var uploadYear } && uploadYear < workYear - 1)
+        { reason = "Upload predates this work"; return null; }
         var lines = video.Description.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         var trackIndex = Array.FindIndex(lines, s => s.Contains('·'));
         var album = video.Album ?? AlbumLine().Match(video.Description).Groups[1].Value.Trim();
@@ -331,6 +349,8 @@ public static partial class Matcher
             linkedYear is { } descriptionYear && descriptionYear != year ||
             Years().Matches(identityText).Select(m => int.Parse(m.Value)).Any(y => y != year)))
         { reason = "Different release year or adaptation"; return null; }
+        if (work.Series ? FilmEdition().IsMatch(identityText) : SeriesEdition().IsMatch(identityText))
+        { reason = "Soundtrack belongs to a different film or series edition"; return null; }
         // Unknown edition/year is deliberately insufficient for ambiguous remakes.
         if (work.Year is not null && video.ReleaseYear is null && linkedYear is null && !Years().IsMatch(identityText) && Normal(work.Title).Split(' ').Length <= 3 &&
             !(work.Series && Contains(title, work.Title)) && !(Sequel().IsMatch(work.Title) && Contains(title, work.Title)))
@@ -340,6 +360,9 @@ public static partial class Matcher
         var track = video.Track ?? (parts.Length >= 2 ? parts[0] : null);
         var artist = video.Artist ?? (parts.Length >= 2 ? parts[1] : null);
         var soundtrackTrack = albumMatches && track is not null && (Contains(title, track) || Contains(track, title));
+        if (!soundtrackTrack && OtherNamedTheme(work, video) && !(albumMatches && SeriesEdition().IsMatch(album)) &&
+            !(work.Year is { } seriesYear && linkedYear == seriesYear && SeriesEdition().IsMatch(video.Description)))
+        { reason = "Title names a different theme"; return null; }
         if (!Theme().IsMatch(title) && !soundtrackTrack)
         { reason = "Neither the title nor a matching soundtrack identifies this as music"; return null; }
         var candidate = soundtrackTrack
@@ -379,9 +402,10 @@ public static partial class Matcher
         {
             "Duration is missing or outside the theme range" => "reasonDuration",
             "Cover, remix, sequel, or other excluded format" => "reasonExcludedFormat",
-            "Soundtrack belongs to a different sequel" or "Different release year or adaptation" or
+            "Soundtrack belongs to a different sequel" or "Different release year or adaptation" or "Upload predates this work" or
+                "Soundtrack belongs to a different film or series edition" or
                 "Release year missing for an ambiguous title" => "reasonEdition",
-            "Title or description does not identify this work" => "reasonWrongWork",
+            "Title or description does not identify this work" or "Title names a different theme" => "reasonWrongWork",
             "Neither the title nor a matching soundtrack identifies this as music" => "reasonNotMusic",
             "Ranking score is too low" => "reasonLowScore",
             _ => "reasonNoMatch"
