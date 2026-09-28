@@ -9,6 +9,14 @@
     "owner": "edmogeor",
     "versions": [
       {
+        "changelog": "### Fixed\n\n- Preserve theme music dynamics by applying one fixed gain per track, capped by true peak, instead of dynamic loudness normalization.\n- Select the first eligible recording when top-scoring soundtrack tracks tie instead of leaving the item without a theme.\n\n",
+        "checksum": "c54fc8190ad3931cea2890b16dc7e24c",
+        "sourceUrl": "https://github.com/edmogeor/jellyscore/releases/download/v0.1.1.0/JellyScore.zip",
+        "targetAbi": "12.0.0.0",
+        "timestamp": "2026-09-28T08:41:54Z",
+        "version": "0.1.1.0"
+      },
+      {
         "changelog": "### Added\n\n- Theme song discovery for selected movie and TV libraries, with conservative matching and two-pass loudness normalization.\n- Admin dashboard for settings, rescan, managed downloads, refresh, and delete.\n- One plugin package containing yt-dlp binaries for supported server platforms.\n",
         "checksum": "2debf2464e4b9bb2793fec6d5d6c09c0",
         "sourceUrl": "https://github.com/edmogeor/jellyscore/releases/download/v0.1.0.0/JellyScore.zip",
