@@ -1,3 +1,9 @@
+## [0.1.2.0]
+
+### Fixed
+
+- Skip piano tutorials and other how-to-play videos when finding theme music.
+
 ## [0.1.1.0]
 
 ### Fixed

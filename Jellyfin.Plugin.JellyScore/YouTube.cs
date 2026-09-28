@@ -173,7 +173,7 @@ public sealed class YouTube
 
 public static partial class Matcher
 {
-    [GeneratedRegex(@"\b(cover|remix|fan.?edit|extended|reaction|trailer|review|full album|compilation|livestream|live stream|karaoke|piano cover|game|parody|tribute|ranked|top\s?10)\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\b(cover|remix|fan.?edit|extended|reaction|trailer|review|full album|compilation|livestream|live stream|karaoke|piano cover|tutorials?|how to play|game|parody|tribute|ranked|top\s?10)\b", RegexOptions.IgnoreCase)]
     private static partial Regex Reject();
     [GeneratedRegex(@"\b(part two|part 2|sequel)\b", RegexOptions.IgnoreCase)]
     private static partial Regex Sequel();

@@ -63,6 +63,10 @@ check(Matcher.RejectionReason(work, [original], new HashSet<string>(), new HashS
 check(Matcher.RejectionReason(work, [video("bbbbbbbbbbb", "Dune 1984 Main Theme", "")], new HashSet<string>(), new HashSet<string>()).Contains("Different release year"),
     "rejected edition reports why");
 var oak = new Work("The End of Oak Street", null, 2026, false);
+var tutorial = new Video("GneFZPhfN7o", "The End of Oak Street – Main Theme | Piano Tutorial (Synthesia)",
+    "Learn how to play the Main Theme from The End of Oak Street (2026) on piano with this Synthesia tutorial.", "Noud van Harskamp", 123);
+check(!Matcher.Promising(oak, tutorial), "piano tutorial is not shortlisted");
+check(Matcher.Evaluate(oak, tutorial) is null, "piano tutorial cannot be downloaded even when full metadata is available");
 Video oakTrack(string id, string title, int seconds) => new(id, title, "Composed by Michael Giacchino.", "OfficialMovieSoundtrack", seconds);
 var endOfOakSuite = oakTrack("48Jx-37AFVY", "27. The End of Oak Suite (The End of Oak Street Soundtrack)", 286);
 var mainOnEndOfDays = oakTrack("KzScQcXFImg", "26. Main on End of Days (The End of Oak Street Soundtrack)", 105);
