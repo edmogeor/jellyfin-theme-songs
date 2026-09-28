@@ -628,12 +628,12 @@
       const showError = (e) => {
         if (!silent(e)) toast(userError(e));
       };
-      const load = (fn) =>
+      const load = (fn, retry = temporary) =>
         fn().catch((e) => {
-          if (temporary(e)) {
+          if (retry(e)) {
             if (visible)
               setTimeout(() => {
-                if (visible) load(fn);
+                if (visible) load(fn, retry);
               }, 3000);
           } else showError(e);
         });
@@ -896,12 +896,15 @@
           });
       page.addEventListener("pageshow", () => {
         visible = true;
-        load(async () => {
-          await loadStrings();
-          load(settings);
-          load(rows);
-          poll();
-        });
+        load(
+          async () => {
+            await loadStrings();
+            load(settings);
+            load(rows);
+            poll();
+          },
+          () => !strings,
+        );
         page.timer = setInterval(() => {
           if (strings) poll();
         }, 3000);
