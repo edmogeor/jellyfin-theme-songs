@@ -1,7 +1,7 @@
 {
   "themeSettingsTitle": "Inställningar för temamusik",
   "minimumMatchStrength": "Lägsta matchningsstyrka (0–100)",
-  "matchStrengthHelp": "Högre värde ger striktare matchning. 0 behåller nuvarande beteende.",
+  "matchStrengthHelp": "Högre värde ger striktare matchning.",
   "reasonBelowStrength": "Resultaten ligger under lägsta matchningsstyrkan",
   "description": "Hittar automatiskt temamusik till dina filmer och serier.",
   "libraries": "Bibliotek",

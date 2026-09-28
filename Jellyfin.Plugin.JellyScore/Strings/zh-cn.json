@@ -1,7 +1,7 @@
 {
   "themeSettingsTitle": "主题音乐设置",
   "minimumMatchStrength": "最低匹配强度 (0–100)",
-  "matchStrengthHelp": "数值越高，匹配越严格。0 保持当前行为。",
+  "matchStrengthHelp": "数值越高，匹配越严格。",
   "reasonBelowStrength": "结果低于设定的最低匹配强度",
   "description": "自动为您的电影和剧集查找主题音乐。",
   "libraries": "媒体库",

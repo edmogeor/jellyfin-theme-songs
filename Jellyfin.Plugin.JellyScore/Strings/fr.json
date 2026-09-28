@@ -1,7 +1,7 @@
 {
   "themeSettingsTitle": "Paramètres des thèmes musicaux",
   "minimumMatchStrength": "Force minimale de correspondance (0–100)",
-  "matchStrengthHelp": "Une valeur plus élevée impose une correspondance plus stricte. 0 conserve le comportement actuel.",
+  "matchStrengthHelp": "Une valeur plus élevée impose une correspondance plus stricte.",
   "reasonBelowStrength": "Les résultats sont sous la force minimale de correspondance",
   "description": "Trouve automatiquement la musique de générique de vos films et séries.",
   "libraries": "Bibliothèques",

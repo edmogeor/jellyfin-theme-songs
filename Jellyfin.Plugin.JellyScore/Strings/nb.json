@@ -1,7 +1,7 @@
 {
   "themeSettingsTitle": "Innstillinger for temamusikk",
   "minimumMatchStrength": "Minste matchstyrke (0–100)",
-  "matchStrengthHelp": "Høyere verdi gir strengere matching. 0 beholder dagens oppførsel.",
+  "matchStrengthHelp": "Høyere verdi gir strengere matching.",
   "reasonBelowStrength": "Resultatene er under minste matchstyrke",
   "description": "Finner automatisk temamusikk til filmene og seriene dine.",
   "libraries": "Biblioteker",

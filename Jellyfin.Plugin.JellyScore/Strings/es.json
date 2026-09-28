@@ -1,7 +1,7 @@
 {
   "themeSettingsTitle": "Ajustes de música temática",
   "minimumMatchStrength": "Fuerza mínima de coincidencia (0–100)",
-  "matchStrengthHelp": "Un valor más alto exige mayor coincidencia. 0 mantiene el comportamiento actual.",
+  "matchStrengthHelp": "Un valor más alto exige mayor coincidencia.",
   "reasonBelowStrength": "Los resultados están por debajo de la fuerza mínima de coincidencia",
   "description": "Encuentra automáticamente música temática para tus películas y series.",
   "libraries": "Bibliotecas",

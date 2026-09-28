@@ -1,7 +1,7 @@
 {
   "themeSettingsTitle": "Ustawienia muzyki motywu",
   "minimumMatchStrength": "Minimalna siła dopasowania (0–100)",
-  "matchStrengthHelp": "Wyższa wartość oznacza bardziej rygorystyczne dopasowanie. 0 zachowuje obecne działanie.",
+  "matchStrengthHelp": "Wyższa wartość oznacza bardziej rygorystyczne dopasowanie.",
   "reasonBelowStrength": "Wyniki są poniżej minimalnej siły dopasowania",
   "description": "Automatycznie znajduje muzykę motywu dla filmów i seriali.",
   "libraries": "Biblioteki",

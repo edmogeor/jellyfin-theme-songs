@@ -150,7 +150,7 @@ status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries
 assert status == 204, f"save a custom match strength: {status}"
 assert_settings(token, True, selected, 75)
 status, _ = request("POST", f"/Plugins/{PLUGIN}/Configuration", {"Enabled": True, "Libraries": selected, "MinimumMatchStrength": None}, token)
-assert status == 204, f"simulate an existing config without the new setting: {status}"
+assert status == 204, f"simulate an existing config with an unset match strength: {status}"
 subprocess.run(["docker", "compose", "-f", "tests/e2e/compose.yaml", "restart", "jellyfin"], check=True)
 for _ in range(60):
     status, _ = request("GET", "/ThemeSongs/settings", token=token)
@@ -158,9 +158,6 @@ for _ in range(60):
         break
     time.sleep(2)
 assert status == 200, f"plugin did not restart: {status}"
-assert_settings(token, True, selected, 0)
-status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": selected, "minimumMatchStrength": 50}, token)
-assert status == 204, f"restore new-install match strength for live checks: {status}"
 assert_settings(token, True, selected)
 status, before = request("GET", "/ThemeSongs/scan", token=token)
 assert status == 200, f"read scan status: {status}"

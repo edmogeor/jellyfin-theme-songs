@@ -1,7 +1,7 @@
 {
   "themeSettingsTitle": "Theme settings",
   "minimumMatchStrength": "Minimum match strength (0–100)",
-  "matchStrengthHelp": "Higher means stricter matching. 0 keeps current behavior.",
+  "matchStrengthHelp": "Higher means stricter matching.",
   "reasonBelowStrength": "Results are below your minimum match strength",
   "description": "Automatically finds theme music for your movies and shows.",
   "libraries": "Libraries",

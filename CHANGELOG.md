@@ -1,3 +1,10 @@
+## [0.1.13.0]
+
+### Improved
+
+- Use the same default match strength of 50 for new and existing installations while retaining existing settings.
+- Shorten the match-strength helper text in every supported language.
+
 ## [0.1.12.0]
 
 ### Added

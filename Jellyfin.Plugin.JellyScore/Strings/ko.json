@@ -1,7 +1,7 @@
 {
   "themeSettingsTitle": "테마 음악 설정",
   "minimumMatchStrength": "최소 일치 강도 (0–100)",
-  "matchStrengthHelp": "값이 높을수록 더 엄격하게 일치시킵니다. 0은 현재 동작을 유지합니다.",
+  "matchStrengthHelp": "값이 높을수록 더 엄격하게 일치시킵니다.",
   "reasonBelowStrength": "결과가 설정한 최소 일치 강도보다 낮습니다",
   "description": "영화와 시리즈의 테마 음악을 자동으로 찾습니다.",
   "libraries": "라이브러리",

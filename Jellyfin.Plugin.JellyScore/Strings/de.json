@@ -1,7 +1,7 @@
 {
   "themeSettingsTitle": "Einstellungen für Titelmusik",
   "minimumMatchStrength": "Mindeststärke der Übereinstimmung (0–100)",
-  "matchStrengthHelp": "Ein höherer Wert prüft strenger. 0 behält das bisherige Verhalten bei.",
+  "matchStrengthHelp": "Ein höherer Wert prüft strenger.",
   "reasonBelowStrength": "Die Ergebnisse liegen unter der Mindeststärke der Übereinstimmung",
   "description": "Findet automatisch Titelmusik für Ihre Filme und Serien.",
   "libraries": "Bibliotheken",

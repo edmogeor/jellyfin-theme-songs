@@ -1,7 +1,7 @@
 {
   "themeSettingsTitle": "Tunnusmusiikin asetukset",
   "minimumMatchStrength": "Vähimmäisvastaavuus (0–100)",
-  "matchStrengthHelp": "Suurempi arvo tarkoittaa tiukempaa vastaavuutta. 0 säilyttää nykyisen toiminnan.",
+  "matchStrengthHelp": "Suurempi arvo tarkoittaa tiukempaa vastaavuutta.",
   "reasonBelowStrength": "Tulokset jäävät vähimmäisvastaavuuden alle",
   "description": "Etsii automaattisesti tunnusmusiikkia elokuvillesi ja sarjoillesi.",
   "libraries": "Kirjastot",
