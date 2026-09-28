@@ -5,6 +5,10 @@
   data-require="emby-input,emby-button,emby-checkbox"
 >
   <style>
+    #themeSongsConfirm .formDialogHeaderTitle {
+      display: block;
+      margin: 0 !important;
+    }
     #themeSongsPage .content-primary {
       max-width: 80rem;
       margin: 0 2rem;
@@ -84,6 +88,20 @@
     #themeSongsPage .themeSearch input {
       min-width: 0;
       flex: 1;
+    }
+    #themeSongsPage .themeDownloadTools {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    #themeSongsPage .themeDownloadTools .inputContainer {
+      flex: 1 1 16rem;
+      margin: 0;
+    }
+    #themeSongsPage #themeDeleteAll {
+      margin: 0;
     }
     #themeSongsPage #themeSettings > button,
     #themeSongsPage #themeScanStart,
@@ -309,6 +327,9 @@
         width: 2.4rem;
         height: 2.4rem;
       }
+      #themeSongsPage #themeDeleteAll {
+        width: 100%;
+      }
     }
   </style>
   <div data-role="content" class="content-primary">
@@ -379,17 +400,28 @@
     </section>
     <section class="verticalSection">
       <h3 class="sectionTitle" data-i18n="manageDownloads">Manage downloads</h3>
-      <div class="inputContainer themeSearch">
-        <span class="material-icons" aria-hidden="true">search</span>
-        <input
-          id="themeSearch"
-          type="search"
-          is="emby-input"
-          placeholder="Title or library"
-          data-i18n-placeholder="searchHint"
-          aria-label="Search downloads"
-          data-i18n-aria-label="searchDownloads"
-        />
+      <div class="themeDownloadTools">
+        <div class="inputContainer themeSearch">
+          <span class="material-icons" aria-hidden="true">search</span>
+          <input
+            id="themeSearch"
+            type="search"
+            is="emby-input"
+            placeholder="Title or library"
+            data-i18n-placeholder="searchHint"
+            aria-label="Search downloads"
+            data-i18n-aria-label="searchDownloads"
+          />
+        </div>
+        <button
+          is="emby-button"
+          id="themeDeleteAll"
+          class="raised button-delete"
+          data-i18n="deleteAll"
+          hidden
+        >
+          Delete all
+        </button>
       </div>
       <p id="themeEmpty" hidden>No downloads.</p>
       <div style="overflow-x: auto">
@@ -451,8 +483,11 @@
       const page = document.querySelector("#themeSongsPage");
       const $ = (selector) => page.querySelector(selector);
       let current = 1,
-        total = 0;
+        total = 0,
+        allTotal = 0;
       let scanRunning = false;
+      let bulkBusy = false;
+      let confirming = false;
       let lastScan = null;
       let savedSettings = "";
       let scanPollError = "";
@@ -495,16 +530,42 @@
           settingsValue() === savedSettings;
       };
       const updateRowActions = () => {
+        const removeAll = $("#themeDeleteAll");
+        removeAll.hidden = allTotal === 0;
+        removeAll.disabled = scanRunning || bulkBusy || allTotal === 0;
+        removeAll.textContent = t(bulkBusy ? "deleting" : "deleteAll");
+        $("#themeScanStart").disabled = scanRunning || bulkBusy;
         for (const button of page.querySelectorAll(
           "#themeRows button[data-theme-action]",
         )) {
           const busy = button.closest("tr").dataset.busy === "true";
-          button.disabled = scanRunning || busy;
+          button.disabled = scanRunning || bulkBusy || busy;
           button.title = scanRunning
             ? t("availableAfterScan")
-            : busy
+            : bulkBusy || busy
               ? t("working")
               : button.dataset.themeAction;
+        }
+      };
+      const confirmDelete = async (message, title) => {
+        if (confirming) return false;
+        confirming = true;
+        try {
+          return await new Promise((resolve) =>
+            Dashboard.confirm(
+              {
+                title,
+                text: message,
+                confirmText: t("delete"),
+                primary: "delete",
+                dialogOptions: { id: "themeSongsConfirm" },
+              },
+              "",
+              resolve,
+            ),
+          );
+        } finally {
+          confirming = false;
         }
       };
       const request = async (path, options = {}) => {
@@ -598,6 +659,7 @@
             encodeURIComponent($("#themeSearch").value),
         );
         total = data.Total;
+        allTotal = data.AllTotal;
         if (current > 1 && (current - 1) * 25 >= total) {
           current--;
           return rows();
@@ -710,8 +772,10 @@
           remove.setAttribute("aria-label", t("deleteThemeFor", item.Name));
           remove.dataset.themeAction = t("deleteTheme");
           remove.onclick = async () => {
-            if (row.dataset.busy === "true" || !confirm(t("confirmDelete")))
+            if (scanRunning || bulkBusy || row.dataset.busy === "true") return;
+            if (!(await confirmDelete(t("confirmDelete"), t("deleteTheme"))))
               return;
+            if (!visible || scanRunning || bulkBusy || !row.isConnected) return;
             setBusy(t("deleting"));
             error.hidden = true;
             try {
@@ -746,7 +810,6 @@
         };
         scanRunning = data.Running;
         updateRowActions();
-        $("#themeScanStart").disabled = data.Running;
         $("#themeScanStart").hidden = data.Running;
         $("#themeScanCancel").disabled = !data.Running;
         $("#themeScanCancel").hidden = !data.Running;
@@ -880,6 +943,30 @@
           await progress();
         } catch (e) {
           showError(e);
+        }
+      };
+      $("#themeDeleteAll").onclick = async () => {
+        if (!visible || scanRunning || bulkBusy || !allTotal) return;
+        if (!(await confirmDelete(t("confirmDeleteAll"), t("deleteAll"))))
+          return;
+        if (!visible || scanRunning || bulkBusy || !allTotal) return;
+        bulkBusy = true;
+        updateRowActions();
+        try {
+          const result = await request("downloads", { method: "DELETE" });
+          await rows();
+          toast(
+            t(
+              result.Skipped ? "deleteAllPartial" : "deleteAllSuccess",
+              result.Deleted,
+              result.Skipped,
+            ),
+          );
+        } catch (e) {
+          showError(e);
+        } finally {
+          bulkBusy = false;
+          updateRowActions();
         }
       };
       $("#themeSearch").oninput = () => {

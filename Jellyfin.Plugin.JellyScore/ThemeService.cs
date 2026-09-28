@@ -236,5 +236,18 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
         finally { gate.Release(); }
     }
 
+    public async Task<(int Deleted, int Skipped)> DeleteAll(CancellationToken ct)
+    {
+        var deleted = 0;
+        var skipped = 0;
+        foreach (var record in List())
+        {
+            ct.ThrowIfCancellationRequested();
+            try { await Delete(record.ItemId, ct); deleted++; }
+            catch (Exception e) when (e is InvalidOperationException or IOException or UnauthorizedAccessException) { skipped++; }
+        }
+        return (deleted, skipped);
+    }
+
     public void ResetSuppression() => store.Change(s => s.Suppressed.Clear());
 }

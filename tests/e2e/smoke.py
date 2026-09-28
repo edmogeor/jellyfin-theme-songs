@@ -123,6 +123,8 @@ status, _ = request("GET", "/ThemeSongs/strings/zz", token=token)
 assert status == 404, f"unsupported translation should fall back to English: {status}"
 status, downloads = request("GET", "/ThemeSongs/downloads", token=token)
 assert status == 200 and downloads.get("total", downloads.get("Total")) == 0, f"empty managed list: {status}"
+status, deleted = request("DELETE", "/ThemeSongs/downloads", token=token)
+assert status == 200 and field(deleted, "deleted") == field(deleted, "skipped") == 0, f"empty bulk delete: {status} {deleted}"
 status, _ = request("POST", "/ThemeSongs/settings", {"enabled": False, "libraries": []}, token)
 assert status == 204, f"save settings: {status}"
 selected = ["00000000-0000-0000-0000-000000000001"]
@@ -153,7 +155,7 @@ else:
 status, _ = request("POST", "/ThemeSongs/settings", {"enabled": False, "libraries": []}, token)
 assert status == 204, f"disable automatic processing: {status}"
 assert_settings(token, False, [])
-for method, path in [("GET", "/ThemeSongs/downloads"), ("GET", "/ThemeSongs/strings/en-us"), ("POST", "/ThemeSongs/scan"), ("POST", "/ThemeSongs/settings")]:
+for method, path in [("GET", "/ThemeSongs/downloads"), ("DELETE", "/ThemeSongs/downloads"), ("GET", "/ThemeSongs/strings/en-us"), ("POST", "/ThemeSongs/scan"), ("POST", "/ThemeSongs/settings")]:
     status, _ = request(method, path)
     assert status in (401, 403), f"unauthorized {path}: {status}"
 print("Jellyfin 12 plugin smoke checks passed")
@@ -282,4 +284,16 @@ for _ in range(30):
 assert status == 200 and all(field(item, "itemId") != field(removed, "itemId") for item in field(downloads, "items")), (
     f"removed series remains managed: {downloads}"
 )
-print("Movie and series scan, refresh, delete, and stale-record cleanup passed")
+status, filtered = request("GET", "/ThemeSongs/downloads?search=no-such-theme", token=token)
+assert status == 200 and field(filtered, "total") == 0 and field(filtered, "allTotal") > 0, f"bulk action must include filtered-out themes: {filtered}"
+status, deleted = request("DELETE", "/ThemeSongs/downloads", token=token)
+assert status == 200 and field(deleted, "deleted") == field(filtered, "allTotal") and field(deleted, "skipped") == 0, (
+    f"delete all managed themes: {status} {deleted}"
+)
+status, downloads = request("GET", "/ThemeSongs/downloads", token=token)
+assert status == 200 and field(downloads, "allTotal") == 0, f"managed themes remain after delete all: {downloads}"
+subprocess.run(["docker", "compose", "-f", "tests/e2e/compose.yaml", "exec", "-T", "jellyfin", "cmp", "-s",
+                "/tmp/user-theme-original", "/media/movies/User Theme (2000)/theme.mp3"], check=True)
+subprocess.run(["docker", "compose", "-f", "tests/e2e/compose.yaml", "exec", "-T", "jellyfin", "cmp", "-s",
+                "/tmp/edited-theme-original", field(dune, "path")], check=True)
+print("Movie and series scan, refresh, delete, bulk delete, and stale-record cleanup passed")

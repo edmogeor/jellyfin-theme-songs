@@ -1,3 +1,13 @@
+## [0.1.3.0]
+
+### Added
+
+- Delete all managed themes across pages and search results while preserving files changed outside the plugin.
+
+### Improved
+
+- Confirm individual and bulk deletion with Jellyfin dialogs featuring a centered title and red Delete button.
+
 ## [0.1.2.0]
 
 ### Fixed
