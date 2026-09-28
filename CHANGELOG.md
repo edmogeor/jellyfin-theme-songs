@@ -1,3 +1,9 @@
+## [0.1.16.0]
+
+### Improved
+
+- Fade downloaded themes in and out over one second, and lower the fixed-gain loudness target to -20 LUFS.
+
 ## [0.1.15.0]
 
 ### Improved

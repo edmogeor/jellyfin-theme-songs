@@ -221,8 +221,10 @@ check(YouTube.DownloaderName(false, false, Architecture.X64) == "yt-dlp_linux", 
 check(YouTube.DownloaderName(false, false, Architecture.Arm64, true) == "yt-dlp_musllinux_aarch64", "Alpine arm64 binary");
 check(YouTube.DownloaderName(true, false, Architecture.Arm64) == "yt-dlp_arm64.exe", "Windows arm64 binary");
 check(YouTube.DownloaderName(false, true, Architecture.Arm64) == "yt-dlp_macos", "macOS universal binary");
-check(Audio.FixedGain(-24, -9) == 6, "fixed gain brings a quiet track to -18 LUFS and -3 dBTP");
+check(Audio.FixedGain(-24, -9) == 4, "fixed gain brings a quiet track to -20 LUFS");
 check(Audio.FixedGain(-24, -1) == -2, "true peak caps gain even when average loudness stays below target");
+check(Audio.Filter(4, 10) == "volume=4dB,afade=t=in:d=1,afade=t=out:st=9:d=1", "short track fades at both ends");
+check(Audio.Filter(-2, 120) == "volume=-2dB,afade=t=in:d=1,afade=t=out:st=119:d=1", "fade-out follows actual track duration");
 var scanEstimate = new ScanStatus { Running = true, Total = 12, StartedAt = DateTimeOffset.UtcNow };
 check(scanEstimate.RemainingSeconds is > 239 and < 241, "first scan has an ETA before any item completes");
 scanEstimate.StartedAt = DateTimeOffset.UtcNow.AddSeconds(-60);

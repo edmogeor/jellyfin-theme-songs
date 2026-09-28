@@ -69,8 +69,9 @@ internal static class JellyScoreConstants
     internal const int DownloadRetryBaseSeconds = 2;
     internal const string DownloaderMaximumFileSize = "30M";
 
-    internal const double TargetLufs = -18;
+    internal const double TargetLufs = -20;
     internal const double MaximumTruePeakDbtp = -3;
+    internal const int FadeSeconds = 1;
     internal const int TargetLoudnessRange = 11;
     internal const int Mp3BitrateKbps = 192;
     internal const int RawAudioMaximumBytes = 30_000_000;
