@@ -9,6 +9,14 @@
     "owner": "edmogeor",
     "versions": [
       {
+        "changelog": "### Improved\n\n- Let the match-strength and loudness setting descriptions use the available page width.\n\n",
+        "checksum": "9a969fadb39ca09b9ec3fc02c762e064",
+        "sourceUrl": "https://github.com/edmogeor/jellyscore/releases/download/v0.1.18.0/JellyScore.zip",
+        "targetAbi": "12.0.0.0",
+        "timestamp": "2026-09-29T13:36:29Z",
+        "version": "0.1.18.0"
+      },
+      {
         "changelog": "### Added\n\n- Set a target loudness for new and refreshed themes in the admin page, with labels in every supported language.\n\n### Improved\n\n- Lower the default theme loudness target from -20 to -26 LUFS. Existing downloads stay unchanged.\n\n",
         "checksum": "155a8fcc93d686bdd66026ab5905bc0f",
         "sourceUrl": "https://github.com/edmogeor/jellyscore/releases/download/v0.1.17.0/JellyScore.zip",
