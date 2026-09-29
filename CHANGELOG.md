@@ -1,3 +1,9 @@
+## [0.1.18.0]
+
+### Improved
+
+- Let the match-strength and loudness setting descriptions use the available page width.
+
 ## [0.1.17.0]
 
 ### Added
