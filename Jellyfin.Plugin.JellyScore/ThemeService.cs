@@ -184,7 +184,7 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
                 var temporary = Path.Combine(folder, ".theme-" + Guid.NewGuid().ToString("N") + ".mp3");
                 try
                 {
-                    try { await Audio.Convert(choice, temporary, encoder, ct); }
+                    try { await Audio.Convert(choice, temporary, encoder, Plugin.Instance.Configuration.EffectiveTargetLufs, ct); }
                     catch (DownloadFailure) when (sourceAttempt == 0)
                     {
                         excludedIds.Add(choice.Video.Id);

@@ -1,4 +1,6 @@
 {
+  "themeVolume": "Ziel-Lautheit (LUFS)",
+  "themeVolumeHelp": "Niedrigere Werte bedeuten leisere Titelmusik. Änderungen gelten für neue und aktualisierte Titelmusik, nicht für vorhandene Downloads.",
   "themeSettingsTitle": "Einstellungen für Titelmusik",
   "minimumMatchStrength": "Mindeststärke der Übereinstimmung (0–100)",
   "matchStrengthHelp": "Ein höherer Wert prüft strenger.",

@@ -1,4 +1,6 @@
 {
+  "themeVolume": "Volume desejado (LUFS)",
+  "themeVolumeHelp": "Números menores deixam os temas mais baixos. As alterações valem para temas novos e atualizados, não para downloads existentes.",
   "themeSettingsTitle": "Configurações da música tema",
   "minimumMatchStrength": "Força mínima da correspondência (0–100)",
   "matchStrengthHelp": "Um valor maior exige correspondência mais rigorosa.",

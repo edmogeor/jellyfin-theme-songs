@@ -1,4 +1,6 @@
 {
+  "themeVolume": "Sonoridad objetivo (LUFS)",
+  "themeVolumeHelp": "Los valores más bajos suenan más suaves. Los cambios se aplican a los temas nuevos y actualizados, no a las descargas existentes.",
   "themeSettingsTitle": "Ajustes de música temática",
   "minimumMatchStrength": "Fuerza mínima de coincidencia (0–100)",
   "matchStrengthHelp": "Un valor más alto exige mayor coincidencia.",

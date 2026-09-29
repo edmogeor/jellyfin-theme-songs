@@ -39,7 +39,7 @@ def field(data, name):
     return data.get(name, data.get(name[0].upper() + name[1:]))
 
 
-def assert_settings(token, enabled, libraries, minimum=50):
+def assert_settings(token, enabled, libraries, minimum=50, loudness=-26):
     for path in ("/ThemeSongs/settings", f"/Plugins/{PLUGIN}/Configuration"):
         status, settings = request("GET", path, token=token)
         assert status == 200, f"read settings {path}: {status}"
@@ -50,6 +50,10 @@ def assert_settings(token, enabled, libraries, minimum=50):
         strength = field(settings, "minimumMatchStrength")
         assert (strength if strength is not None else settings.get("EffectiveMinimumMatchStrength")) == minimum, (
             f"saved minimum match strength in {path}: {settings}"
+        )
+        target = field(settings, "targetLufs")
+        assert (target if target is not None else settings.get("EffectiveTargetLufs")) == loudness, (
+            f"saved target loudness in {path}: {settings}"
         )
 
 
@@ -121,14 +125,19 @@ assert status == 200, f"plugin not loaded: {status}"
 assert config["Enabled"] is True, "automatic processing must default to on"
 assert config.get("Libraries") is None, "new installs must default to all libraries"
 assert config["MinimumMatchStrength"] == 50, "new installs default to match strength 50"
+assert config["TargetLufs"] == -26, "new installs default to quieter themes"
 status, settings = request("GET", "/ThemeSongs/settings", token=token)
 assert status == 200, f"admin settings: {status}"
 assert settings.get("downloaderAvailable", settings.get("DownloaderAvailable")) is True, "downloader release metadata missing"
 assert field(settings, "minimumMatchStrength") == 50, "admin settings expose the effective match strength"
+assert field(settings, "targetLufs") == -26, "admin settings expose the effective loudness target"
 status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": [], "minimumMatchStrength": -1}, token)
 assert status == 400, f"negative match strength must be rejected: {status}"
 status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": [], "minimumMatchStrength": 101}, token)
 assert status == 400, f"out-of-range match strength must be rejected: {status}"
+for target in (-71, -4):
+    status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": [], "targetLufs": target}, token)
+    assert status == 400, f"unsupported loudness target {target} must be rejected: {status}"
 status, strings = request("GET", "/ThemeSongs/strings/en-us", token=token)
 assert status == 200 and strings["scanLibraries"] == "Scan libraries", f"English translations: {status} {strings}"
 english_strings = strings
@@ -149,7 +158,10 @@ assert_settings(token, True, selected)
 status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": selected, "minimumMatchStrength": 75}, token)
 assert status == 204, f"save a custom match strength: {status}"
 assert_settings(token, True, selected, 75)
-status, _ = request("POST", f"/Plugins/{PLUGIN}/Configuration", {"Enabled": True, "Libraries": selected, "MinimumMatchStrength": None}, token)
+status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": selected, "targetLufs": -30}, token)
+assert status == 204, f"save a custom loudness target: {status}"
+assert_settings(token, True, selected, 75, -30)
+status, _ = request("POST", f"/Plugins/{PLUGIN}/Configuration", {"Enabled": True, "Libraries": selected, "MinimumMatchStrength": None, "TargetLufs": None}, token)
 assert status == 204, f"simulate an existing config with an unset match strength: {status}"
 subprocess.run(["docker", "compose", "-f", "tests/e2e/compose.yaml", "restart", "jellyfin"], check=True)
 for _ in range(60):

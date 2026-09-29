@@ -1,4 +1,6 @@
 {
+  "themeVolume": "Tavoiteäänekkyys (LUFS)",
+  "themeVolumeHelp": "Pienempi luku tarkoittaa hiljaisempaa ääntä. Muutos koskee uusia ja päivitettyjä tunnusmusiikkeja, ei aiempia latauksia.",
   "themeSettingsTitle": "Tunnusmusiikin asetukset",
   "minimumMatchStrength": "Vähimmäisvastaavuus (0–100)",
   "matchStrengthHelp": "Suurempi arvo tarkoittaa tiukempaa vastaavuutta.",

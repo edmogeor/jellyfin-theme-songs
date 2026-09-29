@@ -1,4 +1,6 @@
 {
+  "themeVolume": "목표 음량 (LUFS)",
+  "themeVolumeHelp": "숫자가 낮을수록 더 조용합니다. 변경 사항은 새로 다운로드하거나 새로 고친 테마에만 적용되며 기존 다운로드에는 적용되지 않습니다.",
   "themeSettingsTitle": "테마 음악 설정",
   "minimumMatchStrength": "최소 일치 강도 (0–100)",
   "matchStrengthHelp": "값이 높을수록 더 엄격하게 일치시킵니다.",

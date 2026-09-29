@@ -1,4 +1,6 @@
 {
+  "themeVolume": "Docelowa głośność (LUFS)",
+  "themeVolumeHelp": "Niższe liczby oznaczają cichsze motywy. Zmiany dotyczą nowych i odświeżonych motywów, a nie istniejących pobrań.",
   "themeSettingsTitle": "Ustawienia muzyki motywu",
   "minimumMatchStrength": "Minimalna siła dopasowania (0–100)",
   "matchStrengthHelp": "Wyższa wartość oznacza bardziej rygorystyczne dopasowanie.",

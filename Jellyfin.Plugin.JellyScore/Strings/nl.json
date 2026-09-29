@@ -1,4 +1,6 @@
 {
+  "themeVolume": "Doelluidheid (LUFS)",
+  "themeVolumeHelp": "Lagere waarden maken themamuziek zachter. Wijzigingen gelden voor nieuwe en vernieuwde themamuziek, niet voor bestaande downloads.",
   "themeSettingsTitle": "Instellingen voor themamuziek",
   "minimumMatchStrength": "Minimale matchsterkte (0–100)",
   "matchStrengthHelp": "Een hogere waarde zoekt strenger.",

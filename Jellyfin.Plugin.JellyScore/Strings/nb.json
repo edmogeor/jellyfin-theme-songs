@@ -1,4 +1,6 @@
 {
+  "themeVolume": "Målnivå for lydstyrke (LUFS)",
+  "themeVolumeHelp": "Lavere tall gir lavere lydstyrke. Endringer gjelder nye og oppdaterte temalåter, ikke eksisterende nedlastinger.",
   "themeSettingsTitle": "Innstillinger for temamusikk",
   "minimumMatchStrength": "Minste matchstyrke (0–100)",
   "matchStrengthHelp": "Høyere verdi gir strengere matching.",

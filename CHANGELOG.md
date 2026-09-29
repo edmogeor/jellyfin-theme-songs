@@ -1,3 +1,13 @@
+## [0.1.17.0]
+
+### Added
+
+- Set a target loudness for new and refreshed themes in the admin page, with labels in every supported language.
+
+### Improved
+
+- Lower the default theme loudness target from -20 to -26 LUFS. Existing downloads stay unchanged.
+
 ## [0.1.16.0]
 
 ### Improved

@@ -38,9 +38,12 @@ public sealed class Settings : BasePluginConfiguration
     public bool Enabled { get; set; } = true;
     public Guid[]? Libraries { get; set; }
     public int? MinimumMatchStrength { get; set; } = JellyScoreConstants.DefaultMatchStrength;
+    public int? TargetLufs { get; set; } = JellyScoreConstants.DefaultTargetLufs;
 
     public int EffectiveMinimumMatchStrength => Math.Clamp(MinimumMatchStrength ?? JellyScoreConstants.DefaultMatchStrength,
         JellyScoreConstants.MinimumMatchStrength, JellyScoreConstants.MaximumMatchStrength);
+    public int EffectiveTargetLufs => Math.Clamp(TargetLufs ?? JellyScoreConstants.DefaultTargetLufs,
+        JellyScoreConstants.MinimumTargetLufs, JellyScoreConstants.MaximumTargetLufs);
 
     public Guid[] SelectedLibraries(ILibraryManager library) => Libraries ?? library.GetVirtualFolders().Select(f => Guid.Parse(f.ItemId)).ToArray();
 }

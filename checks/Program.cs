@@ -221,8 +221,9 @@ check(YouTube.DownloaderName(false, false, Architecture.X64) == "yt-dlp_linux", 
 check(YouTube.DownloaderName(false, false, Architecture.Arm64, true) == "yt-dlp_musllinux_aarch64", "Alpine arm64 binary");
 check(YouTube.DownloaderName(true, false, Architecture.Arm64) == "yt-dlp_arm64.exe", "Windows arm64 binary");
 check(YouTube.DownloaderName(false, true, Architecture.Arm64) == "yt-dlp_macos", "macOS universal binary");
-check(Audio.FixedGain(-24, -9) == 4, "fixed gain brings a quiet track to -20 LUFS");
-check(Audio.FixedGain(-24, -1) == -2, "true peak caps gain even when average loudness stays below target");
+check(Audio.FixedGain(-30, -9, -26) == 4, "fixed gain brings a quiet track to the default target");
+check(Audio.FixedGain(-30, -1, -26) == -2, "true peak caps gain even when average loudness stays below target");
+check(Audio.FixedGain(-30, -9, -20) == 6, "chosen volume changes gain while peak headroom still wins");
 check(Audio.Filter(4, 10) == "volume=4dB,afade=t=in:d=1,afade=t=out:st=9:d=1", "short track fades at both ends");
 check(Audio.Filter(-2, 120) == "volume=-2dB,afade=t=in:d=1,afade=t=out:st=119:d=1", "fade-out follows actual track duration");
 var scanEstimate = new ScanStatus { Running = true, Total = 12, StartedAt = DateTimeOffset.UtcNow };

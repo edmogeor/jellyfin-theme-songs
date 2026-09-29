@@ -1,4 +1,6 @@
 {
+  "themeVolume": "Volume cible (LUFS)",
+  "themeVolumeHelp": "Plus le nombre est bas, plus le thème est discret. Les changements concernent les nouveaux thèmes et ceux actualisés, pas les téléchargements existants.",
   "themeSettingsTitle": "Paramètres des thèmes musicaux",
   "minimumMatchStrength": "Force minimale de correspondance (0–100)",
   "matchStrengthHelp": "Une valeur plus élevée impose une correspondance plus stricte.",

@@ -1,4 +1,6 @@
 {
+  "themeVolume": "目标响度 (LUFS)",
+  "themeVolumeHelp": "数值越低，主题音乐越轻。更改仅适用于新下载和刷新的主题音乐，不会影响已有下载。",
   "themeSettingsTitle": "主题音乐设置",
   "minimumMatchStrength": "最低匹配强度 (0–100)",
   "matchStrengthHelp": "数值越高，匹配越严格。",
