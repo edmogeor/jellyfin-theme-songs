@@ -9,6 +9,14 @@
     "owner": "edmogeor",
     "versions": [
       {
+        "changelog": "### Improved\n\n- Find named soundtrack tracks linked by YouTube search descriptions, including *The Shawshank Redemption*'s verified 1994 recording.\n- Prefer eligible movie themes over end titles when Jellyfin's TMDb film and TV searches find no competing edition. Keep the year requirement when the provider is unavailable, disabled, or finds a clash.\n\n",
+        "checksum": "eaab379ab5d67f536d629c5f1fd01b06",
+        "sourceUrl": "https://github.com/edmogeor/jellyscore/releases/download/v0.1.19.0/JellyScore.zip",
+        "targetAbi": "12.0.0.0",
+        "timestamp": "2026-09-30T14:38:46Z",
+        "version": "0.1.19.0"
+      },
+      {
         "changelog": "### Improved\n\n- Let the match-strength and loudness setting descriptions use the available page width.\n\n",
         "checksum": "9a969fadb39ca09b9ec3fc02c762e064",
         "sourceUrl": "https://github.com/edmogeor/jellyscore/releases/download/v0.1.18.0/JellyScore.zip",
