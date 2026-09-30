@@ -70,6 +70,10 @@ Feel free to donate if you'd like to support development.
 
 ## License
 
-Copyright © 2026 George Edmonds. Licensed under [GPL-3.0-or-later](LICENSE).
+Copyright © 2026 edmogeor. Licensed under [GPL-3.0-or-later](LICENSE).
 
 JellyScore uses [yt-dlp](https://github.com/yt-dlp/yt-dlp). Its Git repository is [Unlicense](https://github.com/yt-dlp/yt-dlp/blob/master/LICENSE), while its standalone executables bundle other components and are GPLv3+ as a combined work. See [yt-dlp's licensing details](https://github.com/yt-dlp/yt-dlp#licensing).
+
+## AI disclosure
+
+AI tools assist with development and testing. All code is reviewed by the maintainer before release.
