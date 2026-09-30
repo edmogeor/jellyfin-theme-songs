@@ -9,6 +9,14 @@
     "owner": "edmogeor",
     "versions": [
       {
+        "changelog": "### Added\n\n- Control new-item processing and full scans after Jellyfin media library scans separately, with both enabled by default and labels in every supported language.\n\n### Improved\n\n- Generate English admin-page fallback text from the translation dictionary at build time, keeping one source for the wording.\n\n",
+        "checksum": "25d1925216903e4f2528f5943dfab098",
+        "sourceUrl": "https://github.com/edmogeor/jellyscore/releases/download/v0.1.21.0/JellyScore.zip",
+        "targetAbi": "12.0.0.0",
+        "timestamp": "2026-09-30T18:03:41Z",
+        "version": "0.1.21.0"
+      },
+      {
         "changelog": "### Improved\n\n- Measure theme loudness and true peak with FFmpeg's faster EBU R128 filter before applying fixed gain, retaining a conservative peak margin. Existing themes are unchanged.\n\n",
         "checksum": "b45a9fa5a28593c6aeda55fbe34ed9d1",
         "sourceUrl": "https://github.com/edmogeor/jellyscore/releases/download/v0.1.20.0/JellyScore.zip",
