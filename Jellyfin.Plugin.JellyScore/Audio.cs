@@ -31,11 +31,15 @@ public static class Audio
         return output;
     }
 
-    private static JsonElement Stats(string output)
+    // ReSharper disable once MemberCanBePrivate.Global
+    public static (double Loudness, double TruePeak) Stats(string output)
     {
-        var match = Regex.Match(output, @"\{\s*""input_i"".+?\}", RegexOptions.Singleline);
-        if (!match.Success) throw new IOException("FFmpeg loudness analysis returned no measurements.");
-        return JsonDocument.Parse(match.Value).RootElement.Clone();
+        var match = Regex.Match(output, @"Integrated loudness:\s+I:\s+(?<loudness>-?\d+(?:\.\d+)?) LUFS[\s\S]*?True peak:\s+Peak:\s+(?<peak>-?\d+(?:\.\d+)?) dBFS");
+        if (!match.Success || !double.TryParse(match.Groups["loudness"].Value, CultureInfo.InvariantCulture, out var loudness) ||
+            !double.TryParse(match.Groups["peak"].Value, CultureInfo.InvariantCulture, out var peak) ||
+            !double.IsFinite(loudness) || !double.IsFinite(peak)) throw new IOException("FFmpeg loudness analysis returned invalid measurements.");
+        // ebur128 rounds to tenths; leave another tenth of headroom rather than risk crossing the true-peak ceiling.
+        return (loudness, peak + 0.1);
     }
 
     // ReSharper disable once MemberCanBePrivate.Global
@@ -56,12 +60,9 @@ public static class Audio
             using var source = JsonDocument.Parse(await Run(encoder.ProbePath, ["-v", "error", "-show_entries", "format=duration", "-of", "json", raw], ct));
             if (!double.TryParse(source.RootElement.GetProperty("format").GetProperty("duration").GetString(), CultureInfo.InvariantCulture, out var sourceDuration) ||
                 !double.IsFinite(sourceDuration) || sourceDuration < 1) throw new IOException("Downloaded audio has no valid duration.");
-            // Leave headroom for MP3 encoding without compressing the recording's dynamics.
-            var measured = Stats(await Run(encoder.EncoderPath, ["-hide_banner", "-nostats", "-i", raw, "-af",
-                $"loudnorm=I={targetLufs}:TP={JellyScoreConstants.MaximumTruePeakDbtp}:LRA={JellyScoreConstants.TargetLoudnessRange}:print_format=json", "-f", "null", "-"], ct));
-            if (!double.TryParse(measured.GetProperty("input_i").GetString(), CultureInfo.InvariantCulture, out var loudness) || !double.IsFinite(loudness) ||
-                !double.TryParse(measured.GetProperty("input_tp").GetString(), CultureInfo.InvariantCulture, out var peak) || !double.IsFinite(peak))
-                throw new IOException("FFmpeg loudness analysis returned invalid measurements.");
+            // Measure integrated loudness and true peak, then apply only a fixed gain to preserve dynamics.
+            var (loudness, peak) = Stats(await Run(encoder.EncoderPath, ["-hide_banner", "-nostats", "-i", raw, "-af",
+                "ebur128=peak=true:framelog=verbose", "-f", "null", "-"], ct));
             await Run(encoder.EncoderPath, ["-hide_banner", "-nostdin", "-y", "-i", raw, "-vn", "-af", Filter(FixedGain(loudness, peak, targetLufs), sourceDuration), "-c:a", "libmp3lame", "-b:a", $"{JellyScoreConstants.Mp3BitrateKbps}k", "-f", "mp3", destination], ct);
             if (!File.Exists(destination) || new FileInfo(destination).Length is 0 or > JellyScoreConstants.ConvertedAudioMaximumBytes) throw new IOException("Converted audio is empty or too large.");
             var probe = await Run(encoder.ProbePath, ["-v", "error", "-select_streams", "a:0", "-show_entries", "stream=codec_name:format=duration", "-of", "json", destination], ct);

@@ -1,3 +1,9 @@
+## [0.1.20.0]
+
+### Improved
+
+- Measure theme loudness and true peak with FFmpeg's faster EBU R128 filter before applying fixed gain, retaining a conservative peak margin. Existing themes are unchanged.
+
 ## [0.1.19.0]
 
 ### Improved

@@ -254,6 +254,11 @@ check(YouTube.DownloaderName(false, true, Architecture.Arm64) == "yt-dlp_macos",
 check(Audio.FixedGain(-30, -9, -26) == 4, "fixed gain brings a quiet track to the default target");
 check(Audio.FixedGain(-30, -1, -26) == -2, "true peak caps gain even when average loudness stays below target");
 check(Audio.FixedGain(-30, -9, -20) == 6, "chosen volume changes gain while peak headroom still wins");
+var measured = Audio.Stats("Integrated loudness:\n    I:         -19.3 LUFS\n    Threshold: -29.5 LUFS\nTrue peak:\n    Peak:       -3.1 dBFS");
+check(measured.Loudness == -19.3 && Math.Abs(measured.TruePeak - -3.0) < 0.0001 &&
+    Math.Abs(Audio.FixedGain(measured.Loudness, measured.TruePeak, -26) - -6.7) < 0.0001 &&
+    Audio.FixedGain(-30, measured.TruePeak, -26) == 0,
+    "fast EBU R128 analysis measures loudness and conservatively caps true peak");
 check(Audio.Filter(4, 10) == "volume=4dB,afade=t=in:d=1,afade=t=out:st=9:d=1", "short track fades at both ends");
 check(Audio.Filter(-2, 120) == "volume=-2dB,afade=t=in:d=1,afade=t=out:st=119:d=1", "fade-out follows actual track duration");
 var scanEstimate = new ScanStatus { Running = true, Total = 12, StartedAt = DateTimeOffset.UtcNow };

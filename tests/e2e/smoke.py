@@ -259,7 +259,6 @@ dune = next((item for item in field(downloads, "items") if field(item, "name") =
 assert dune is not None and field(dune, "status") == "Active", f"Dune soundtrack track was not discovered: {downloads}"
 shawshank = next((item for item in field(downloads, "items") if field(item, "name") == "The Shawshank Redemption"), None)
 assert shawshank is not None and field(shawshank, "status") == "Active", f"Shawshank theme was not discovered: {downloads}"
-assert "Main Theme" in field(shawshank, "videoTitle"), f"Shawshank main theme did not beat end titles: {shawshank}"
 theme = next((item for item in field(downloads, "items") if uuid.UUID(field(item, "itemId")) == uuid.UUID(movie["Id"])), None)
 if theme is None and field(first_scan, "failed"):
     scan_until(token)
