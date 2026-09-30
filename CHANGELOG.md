@@ -1,3 +1,13 @@
+## [0.1.21.0]
+
+### Added
+
+- Control new-item processing and full scans after Jellyfin media library scans separately, with both enabled by default and labels in every supported language.
+
+### Improved
+
+- Generate English admin-page fallback text from the translation dictionary at build time, keeping one source for the wording.
+
 ## [0.1.20.0]
 
 ### Improved

@@ -11,7 +11,8 @@ namespace Jellyfin.Plugin.JellyScore;
 public sealed class ThemeController(ThemeService themes, ThemeScan scan, ITaskManager tasks, ILibraryManager library) : ControllerBase
 {
     [HttpGet("settings")]
-    public object Settings() => new { Plugin.Instance.Configuration.Enabled, Libraries = Plugin.Instance.Configuration.SelectedLibraries(library),
+    public object Settings() => new { Plugin.Instance.Configuration.Enabled, Plugin.Instance.Configuration.ScanOnLibraryRefresh,
+        Libraries = Plugin.Instance.Configuration.SelectedLibraries(library),
         MinimumMatchStrength = Plugin.Instance.Configuration.EffectiveMinimumMatchStrength,
         TargetLufs = Plugin.Instance.Configuration.EffectiveTargetLufs,
         YouTube.DownloaderAvailable, YouTube.DownloaderError,
@@ -31,7 +32,7 @@ public sealed class ThemeController(ThemeService themes, ThemeScan scan, ITaskMa
         return stream is null ? NotFound() : File(stream, "application/json");
     }
 
-    public sealed record SettingsRequest(bool Enabled, Guid[]? Libraries, int? MinimumMatchStrength, int? TargetLufs);
+    public sealed record SettingsRequest(bool Enabled, Guid[]? Libraries, int? MinimumMatchStrength, int? TargetLufs, bool? ScanOnLibraryRefresh);
 
     [HttpPost("settings")]
     public IActionResult Save([FromBody] SettingsRequest request)
@@ -40,6 +41,7 @@ public sealed class ThemeController(ThemeService themes, ThemeScan scan, ITaskMa
         if (request.TargetLufs is < JellyScoreConstants.MinimumTargetLufs or > JellyScoreConstants.MaximumTargetLufs) return BadRequest();
         var config = Plugin.Instance.Configuration;
         config.Enabled = request.Enabled;
+        if (request.ScanOnLibraryRefresh is { } scanOnLibraryRefresh) config.ScanOnLibraryRefresh = scanOnLibraryRefresh;
         config.Libraries = request.Libraries ?? [];
         if (request.MinimumMatchStrength is { } minimumMatchStrength) config.MinimumMatchStrength = minimumMatchStrength;
         if (request.TargetLufs is { } targetLufs) config.TargetLufs = targetLufs;

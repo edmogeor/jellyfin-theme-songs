@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Version>0.1.20.0</Version>
+    <Version>0.1.21.0</Version>
     <JellyfinVersion Condition="'$(JellyfinVersion)' == ''">12.0.0</JellyfinVersion>
   </PropertyGroup>
   <ItemGroup>
@@ -8,7 +8,12 @@
     <PackageReference Include="Jellyfin.Model" Version="$(JellyfinVersion)"><ExcludeAssets>runtime</ExcludeAssets></PackageReference>
     <PackageReference Include="Jellyfin.Common" Version="$(JellyfinVersion)"><ExcludeAssets>runtime</ExcludeAssets></PackageReference>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <EmbeddedResource Include="config.html" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)config.html" LogicalName="Jellyfin.Plugin.JellyScore.config.html" />
     <EmbeddedResource Include="Strings/*.json" />
   </ItemGroup>
+  <Target Name="EmbedEnglishStrings" BeforeTargets="AssignTargetPaths"
+          Inputs="config.html;Strings/en-us.json;../scripts/embed-english.mjs"
+          Outputs="$(IntermediateOutputPath)config.html">
+    <Exec Command="node &quot;$(MSBuildProjectDirectory)/../scripts/embed-english.mjs&quot; &quot;$(MSBuildProjectDirectory)/config.html&quot; &quot;$(MSBuildProjectDirectory)/Strings/en-us.json&quot; &quot;$(IntermediateOutputPath)config.html&quot;" />
+  </Target>
 </Project>

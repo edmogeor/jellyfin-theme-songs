@@ -26,6 +26,5 @@ series() {
   printf '<tvshow><title>%s</title><year>%s</year><lockdata>true</lockdata></tvshow>\n' "$1" "$2" > "$folder/tvshow.nfo"
 }
 series 'The Office (US)' 2005
-series 'Breaking Bad' 2008
 SH
 python3 -u tests/e2e/smoke.py

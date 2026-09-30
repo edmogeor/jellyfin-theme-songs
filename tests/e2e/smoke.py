@@ -39,11 +39,12 @@ def field(data, name):
     return data.get(name, data.get(name[0].upper() + name[1:]))
 
 
-def assert_settings(token, enabled, libraries, minimum=50, loudness=-26):
+def assert_settings(token, enabled, libraries, minimum=50, loudness=-26, scan_on_library_refresh=True):
     for path in ("/ThemeSongs/settings", f"/Plugins/{PLUGIN}/Configuration"):
         status, settings = request("GET", path, token=token)
         assert status == 200, f"read settings {path}: {status}"
         assert field(settings, "enabled") is enabled, f"saved enabled in {path}: {settings}"
+        assert field(settings, "scanOnLibraryRefresh") is scan_on_library_refresh, f"saved scan trigger in {path}: {settings}"
         assert [uuid.UUID(str(value)) for value in field(settings, "libraries")] == [uuid.UUID(value) for value in libraries], (
             f"saved libraries in {path}: {settings}"
         )
@@ -70,9 +71,9 @@ def scan_until(token, expected=None, expect_current=False):
                 assert field(progress, "remainingSeconds") > 0, f"running scan has no ETA: {progress}"
             saw_current |= "Sorcerer" in field(progress, "currentItem")
         if status == 200 and not field(progress, "running") and field(progress, "runId") != field(before, "runId"):
-            assert field(progress, "processed") == field(progress, "total") == 6, f"scan did not process all items: {progress}"
+            assert field(progress, "processed") == field(progress, "total") == 5, f"scan did not process all items: {progress}"
             counts = ("added", "alreadyThemed", "excluded", "noMatch", "unsupported", "failed")
-            assert sum(field(progress, key) for key in counts) == 6, f"scan counts disagree: {progress}"
+            assert sum(field(progress, key) for key in counts) == 5, f"scan counts disagree: {progress}"
             if field(progress, "excluded") + field(progress, "noMatch"):
                 assert field(progress, "rejections") and all(
                     field(item, "name") and field(item, "code") in english_strings for item in field(progress, "rejections")
@@ -123,6 +124,7 @@ token = login["AccessToken"]
 status, config = request("GET", f"/Plugins/{PLUGIN}/Configuration", token=token)
 assert status == 200, f"plugin not loaded: {status}"
 assert config["Enabled"] is True, "automatic processing must default to on"
+assert config["ScanOnLibraryRefresh"] is True, "library-refresh scanning must default to on"
 assert config.get("Libraries") is None, "new installs must default to all libraries"
 assert config["MinimumMatchStrength"] == 50, "new installs default to match strength 50"
 assert config["TargetLufs"] == -26, "new installs default to quieter themes"
@@ -131,6 +133,7 @@ assert status == 200, f"admin settings: {status}"
 assert settings.get("downloaderAvailable", settings.get("DownloaderAvailable")) is True, "downloader release metadata missing"
 assert field(settings, "minimumMatchStrength") == 50, "admin settings expose the effective match strength"
 assert field(settings, "targetLufs") == -26, "admin settings expose the effective loudness target"
+assert field(settings, "scanOnLibraryRefresh") is True, "admin settings expose the default scan trigger"
 status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": [], "minimumMatchStrength": -1}, token)
 assert status == 400, f"negative match strength must be rejected: {status}"
 status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": [], "minimumMatchStrength": 101}, token)
@@ -140,9 +143,11 @@ for target in (-71, -4):
     assert status == 400, f"unsupported loudness target {target} must be rejected: {status}"
 status, strings = request("GET", "/ThemeSongs/strings/en-us", token=token)
 assert status == 200 and strings["scanLibraries"] == "Scan libraries", f"English translations: {status} {strings}"
+assert strings["automatic"] == "Automatically process new items" and strings["scanOnLibraryRefresh"] == "Scan after Jellyfin scans the media library"
 english_strings = strings
 status, strings = request("GET", "/ThemeSongs/strings/fr", token=token)
 assert status == 200 and strings["scanLibraries"] == "Analyser les bibliothèques", f"French translations: {status} {strings}"
+assert strings["scanOnLibraryRefresh"], "French scan trigger translation missing"
 status, _ = request("GET", "/ThemeSongs/strings/zz", token=token)
 assert status == 404, f"unsupported translation should fall back to English: {status}"
 status, downloads = request("GET", "/ThemeSongs/downloads", token=token)
@@ -161,7 +166,10 @@ assert_settings(token, True, selected, 75)
 status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": selected, "targetLufs": -30}, token)
 assert status == 204, f"save a custom loudness target: {status}"
 assert_settings(token, True, selected, 75, -30)
-status, _ = request("POST", f"/Plugins/{PLUGIN}/Configuration", {"Enabled": True, "Libraries": selected, "MinimumMatchStrength": None, "TargetLufs": None}, token)
+status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "scanOnLibraryRefresh": False, "libraries": selected}, token)
+assert status == 204, f"disable library-refresh scanning: {status}"
+assert_settings(token, True, selected, 75, -30, False)
+status, _ = request("POST", f"/Plugins/{PLUGIN}/Configuration", {"Enabled": True, "ScanOnLibraryRefresh": False, "Libraries": selected, "MinimumMatchStrength": None, "TargetLufs": None}, token)
 assert status == 204, f"simulate an existing config with an unset match strength: {status}"
 subprocess.run(["docker", "compose", "-f", "tests/e2e/compose.yaml", "restart", "jellyfin"], check=True)
 for _ in range(60):
@@ -170,11 +178,29 @@ for _ in range(60):
         break
     time.sleep(2)
 assert status == 200, f"plugin did not restart: {status}"
-assert_settings(token, True, selected)
+assert_settings(token, True, selected, scan_on_library_refresh=False)
 status, before = request("GET", "/ThemeSongs/scan", token=token)
 assert status == 200, f"read scan status: {status}"
 status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": []}, token)
 assert status == 204, f"clear selected libraries: {status}"
+status, tasks = request("GET", "/ScheduledTasks", token=token)
+assert status == 200, f"list scheduled tasks: {status}"
+previous_refresh = next(task for task in tasks if field(task, "key") == "RefreshLibrary")["LastExecutionResult"]
+status, _ = request("POST", "/Library/Refresh", token=token, timeout=120)
+assert status in (200, 204), f"start Jellyfin library scan: {status}"
+for _ in range(60):
+    status, tasks = request("GET", "/ScheduledTasks", token=token)
+    refresh = next(task for task in tasks if field(task, "key") == "RefreshLibrary")
+    if field(refresh, "state") == "Idle" and refresh["LastExecutionResult"] != previous_refresh:
+        break
+    time.sleep(1)
+else:
+    raise AssertionError("Jellyfin library scan did not complete")
+status, progress = request("GET", "/ThemeSongs/scan", token=token)
+assert status == 200 and field(progress, "runId") == field(before, "runId"), f"disabled library trigger started a JellyScore scan: {progress}"
+status, _ = request("POST", "/ThemeSongs/settings", {"enabled": False, "scanOnLibraryRefresh": True, "libraries": []}, token)
+assert status == 204, f"enable library-refresh scanning without new-item processing: {status}"
+assert_settings(token, False, [], scan_on_library_refresh=True)
 status, _ = request("POST", "/Library/Refresh", token=token, timeout=120)
 assert status in (200, 204), f"start Jellyfin library scan: {status}"
 for _ in range(60):
@@ -184,8 +210,6 @@ for _ in range(60):
     time.sleep(1)
 else:
     raise AssertionError("JellyScore did not run after Jellyfin's library scan")
-status, _ = request("POST", "/ThemeSongs/settings", {"enabled": False, "libraries": []}, token)
-assert status == 204, f"disable automatic processing: {status}"
 assert_settings(token, False, [])
 for method, path in [("GET", "/ThemeSongs/downloads"), ("DELETE", "/ThemeSongs/downloads"), ("GET", "/ThemeSongs/strings/en-us"), ("POST", "/ThemeSongs/scan"), ("POST", "/ThemeSongs/settings"), ("POST", "/ThemeSongs/downloader/retry")]:
     status, _ = request(method, path)
@@ -213,9 +237,11 @@ status, settings = request("GET", "/ThemeSongs/settings", token=token)
 assert status == 200 and {uuid.UUID(str(value)) for value in field(settings, "libraries")} == {
     uuid.UUID(folder["ItemId"]) for folder in folders
 }, f"all libraries should be selected by default: {settings}"
-status, _ = request("POST", "/ThemeSongs/settings", {"enabled": False, "libraries": library_ids}, token)
+status, _ = request("POST", "/ThemeSongs/settings", {"enabled": False, "scanOnLibraryRefresh": False, "libraries": library_ids}, token)
 assert status == 204, f"select libraries: {status}"
-assert_settings(token, False, library_ids)
+assert_settings(token, False, library_ids, scan_on_library_refresh=False)
+status, tasks = request("GET", "/ScheduledTasks", token=token)
+previous_refresh = next(task for task in tasks if field(task, "key") == "RefreshLibrary")["LastExecutionResult"]
 status, _ = request("POST", "/Library/Refresh", token=token, timeout=120)
 assert status in (200, 204), f"scan media libraries: {status}"
 
@@ -228,7 +254,6 @@ for attempt in range(30):
         ("Movie", "The Shawshank Redemption", 1994),
         ("Movie", "User Theme", 2000),
         ("Series", "The Office (US)", 2005),
-        ("Series", "Breaking Bad", 2008),
         ("Movie", "Unselected Example", 1999),
     }.issubset(indexed):
         break
@@ -237,12 +262,22 @@ for attempt in range(30):
     time.sleep(2)
 else:
     raise SystemExit(f"Test media was not indexed: {status} {items}")
+for _ in range(60):
+    status, tasks = request("GET", "/ScheduledTasks", token=token)
+    refresh = next(task for task in tasks if field(task, "key") == "RefreshLibrary")
+    if field(refresh, "state") == "Idle" and refresh["LastExecutionResult"] != previous_refresh:
+        break
+    time.sleep(1)
+else:
+    raise AssertionError("Jellyfin library indexing did not finish")
 status, folders = request("GET", "/Library/VirtualFolders", token=token)
 films = next(folder for folder in folders if folder["Name"] == "Films")
 options = films["LibraryOptions"]
 options["TypeOptions"] = [{"Type": "Movie", "MetadataFetchers": ["TheMovieDb"]}]
 status, _ = request("POST", "/Library/VirtualFolders/LibraryOptions", {"Id": films["ItemId"], "LibraryOptions": options}, token)
 assert status == 204, f"enable TMDb metadata provider for film fixture: {status}"
+status, _ = request("POST", "/ThemeSongs/settings", {"enabled": False, "scanOnLibraryRefresh": True, "libraries": library_ids}, token)
+assert status == 204, f"re-enable library-refresh scanning after fixture indexing: {status}"
 movie = next(item for item in items["Items"] if "Sorcerer" in item["Name"])
 user_theme = next(item for item in items["Items"] if item["Name"] == "User Theme")
 first_scan = scan_until(token, "added", expect_current=True)

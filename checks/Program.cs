@@ -6,6 +6,12 @@ var work = new Work("Dune", null, 2021, false);
 const string licensed = "Provided to YouTube by Warner Records\nDune Main Theme · Hans Zimmer\nAlbum: Dune 2021 (Original Motion Picture Soundtrack)";
 Video video(string id, string title, string description, int? length = 120) => new(id, title, description, "Soundtrack", length);
 void check(bool condition, string reason) { if (!condition) throw new Exception(reason); }
+using (var page = new StreamReader(typeof(YouTube).Assembly.GetManifestResourceStream("Jellyfin.Plugin.JellyScore.config.html")!))
+{
+    var html = page.ReadToEnd();
+    check(html.Contains("Scan after Jellyfin scans the media library", StringComparison.Ordinal) && !html.Contains("{{", StringComparison.Ordinal),
+        "the bundled admin page has English fallbacks from the translation dictionary");
+}
 
 var original = video("aaaaaaaaaaa", "Dune Main Theme", licensed);
 check(Matcher.Evaluate(work, original) is { Score: > 0 }, "soundtrack theme accepted");

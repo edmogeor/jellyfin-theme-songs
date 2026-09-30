@@ -70,7 +70,7 @@ public sealed class LibraryScanWorker(ITaskManager tasks) : IHostedService
 
     private void Completed(object? sender, TaskCompletionEventArgs args)
     {
-        if (args.Task.ScheduledTask.Key == JellyScoreConstants.LibraryRefreshKey && args.Result.Status == TaskCompletionStatus.Completed && Plugin.Instance.Configuration.Enabled)
+        if (args.Task.ScheduledTask.Key == JellyScoreConstants.LibraryRefreshKey && args.Result.Status == TaskCompletionStatus.Completed && Plugin.Instance.Configuration.ScanOnLibraryRefresh)
             tasks.QueueIfNotRunning<ThemeScan>();
     }
 

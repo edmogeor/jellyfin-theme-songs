@@ -376,16 +376,11 @@
   </style>
   <div data-role="content" class="content-primary">
     <h2 class="sectionTitle">JellyScore</h2>
-    <p class="fieldDescription" data-i18n="description">
-      Automatically finds theme music for your movies and shows.
-    </p>
+    <p class="fieldDescription" data-i18n="description">{{description}}</p>
     <div id="themeDownloaderError" class="themeRowError" role="alert" hidden>
       <span class="material-icons" aria-hidden="true">error_outline</span>
       <div>
-        <p data-i18n="downloaderInstallFailed">
-          yt-dlp could not be installed. Check that this server can reach
-          GitHub, then retry.
-        </p>
+        <p data-i18n="downloaderInstallFailed">{{downloaderInstallFailed}}</p>
         <p id="themeDownloaderDetails" class="fieldDescription"></p>
         <button
           is="emby-button"
@@ -393,21 +388,32 @@
           class="raised"
           data-i18n="retryDownloader"
         >
-          Retry download
+          {{retryDownloader}}
         </button>
       </div>
     </div>
     <form id="themeSettings" class="verticalSection">
       <h3 class="sectionTitle" data-i18n="themeSettingsTitle">
-        Theme settings
+        {{themeSettingsTitle}}
       </h3>
-      <h4 class="themeLibraryHeading" data-i18n="libraries">Libraries</h4>
+      <h4 class="themeLibraryHeading" data-i18n="libraries">{{libraries}}</h4>
       <div id="themeLibraries" class="checkboxListContainer"></div>
       <div class="checkboxContainer themeAutoOption">
         <label class="emby-checkbox-label"
           ><input type="checkbox" name="enabled" is="emby-checkbox" /><span
             data-i18n="automatic"
-            >Automatically process new items and library scans</span
+            >{{automatic}}</span
+          ></label
+        >
+      </div>
+      <div class="checkboxContainer">
+        <label class="emby-checkbox-label"
+          ><input
+            type="checkbox"
+            name="scanOnLibraryRefresh"
+            is="emby-checkbox"
+          /><span data-i18n="scanOnLibraryRefresh"
+            >{{scanOnLibraryRefresh}}</span
           ></label
         >
       </div>
@@ -416,7 +422,7 @@
           for="themeStrength"
           class="inputLabel"
           data-i18n="minimumMatchStrength"
-          >Minimum match strength (0–100)</label
+          >{{minimumMatchStrength}}</label
         >
         <input
           id="themeStrength"
@@ -434,12 +440,12 @@
           class="fieldDescription"
           data-i18n="matchStrengthHelp"
         >
-          Higher means stricter matching.
+          {{matchStrengthHelp}}
         </div>
       </div>
       <div class="inputContainer themeVolumeOption">
         <label for="themeVolume" class="inputLabel" data-i18n="themeVolume"
-          >Target loudness (LUFS)</label
+          >{{themeVolume}}</label
         >
         <input
           id="themeVolume"
@@ -457,8 +463,7 @@
           class="fieldDescription"
           data-i18n="themeVolumeHelp"
         >
-          Lower numbers are quieter. Changes apply to new and refreshed themes,
-          not existing downloads.
+          {{themeVolumeHelp}}
         </div>
       </div>
       <button
@@ -468,22 +473,19 @@
         data-i18n="saveSettings"
         disabled
       >
-        Save settings
+        {{saveSettings}}
       </button>
     </form>
     <section class="verticalSection">
-      <h3 class="sectionTitle" data-i18n="fullScan">Full scan</h3>
-      <p class="fieldDescription" data-i18n="scanHelp">
-        Search selected libraries. Skip existing themes and retry deleted
-        downloads.
-      </p>
+      <h3 class="sectionTitle" data-i18n="fullScan">{{fullScan}}</h3>
+      <p class="fieldDescription" data-i18n="scanHelp">{{scanHelp}}</p>
       <button
         is="emby-button"
         id="themeScanStart"
         class="raised"
         data-i18n="scanLibraries"
       >
-        Scan libraries
+        {{scanLibraries}}
       </button>
       <div id="themeScanPanel" hidden>
         <div class="themeProgressLabel">
@@ -492,7 +494,7 @@
         </div>
         <progress
           id="themeScanBar"
-          aria-label="Theme scan progress"
+          aria-label="{{scanProgress}}"
           data-i18n-aria-label="scanProgress"
           max="100"
           value="0"
@@ -507,12 +509,14 @@
           disabled
           hidden
         >
-          Cancel scan
+          {{cancelScan}}
         </button>
       </div>
     </section>
     <section class="verticalSection">
-      <h3 class="sectionTitle" data-i18n="manageDownloads">Manage downloads</h3>
+      <h3 class="sectionTitle" data-i18n="manageDownloads">
+        {{manageDownloads}}
+      </h3>
       <div class="themeDownloadTools">
         <div class="inputContainer themeSearch">
           <span class="material-icons" aria-hidden="true">search</span>
@@ -520,9 +524,9 @@
             id="themeSearch"
             type="search"
             is="emby-input"
-            placeholder="Title or library"
+            placeholder="{{searchHint}}"
             data-i18n-placeholder="searchHint"
-            aria-label="Search downloads"
+            aria-label="{{searchDownloads}}"
             data-i18n-aria-label="searchDownloads"
           />
         </div>
@@ -533,28 +537,28 @@
           data-i18n="deleteAll"
           hidden
         >
-          Delete all
+          {{deleteAll}}
         </button>
       </div>
-      <p id="themeEmpty" hidden>No downloads.</p>
+      <p id="themeEmpty" hidden>{{noDownloads}}</p>
       <div style="overflow-x: auto">
         <table
           id="themeTable"
           class="detailTable"
-          aria-label="Manage downloads"
+          aria-label="{{downloadsTable}}"
           data-i18n-aria-label="downloadsTable"
           hidden
         >
           <thead>
             <tr>
               <th scope="col" class="detailTableHeaderCell" data-i18n="theme">
-                Theme
+                {{theme}}
               </th>
               <th scope="col" class="detailTableHeaderCell" data-i18n="added">
-                Added
+                {{added}}
               </th>
               <th scope="col" class="detailTableHeaderCell" data-i18n="actions">
-                Actions
+                {{actions}}
               </th>
             </tr>
           </thead>
@@ -563,7 +567,7 @@
       </div>
       <nav
         id="themePagination"
-        aria-label="Downloads pages"
+        aria-label="{{downloadsPages}}"
         data-i18n-aria-label="downloadsPages"
         hidden
       >
@@ -571,9 +575,9 @@
         <button
           is="emby-button"
           id="themePrevious"
-          aria-label="Previous page"
+          aria-label="{{previousPage}}"
           data-i18n-aria-label="previousPage"
-          title="Previous page"
+          title="{{previousPage}}"
           data-i18n-title="previousPage"
         >
           <span class="material-icons" aria-hidden="true">chevron_left</span>
@@ -581,9 +585,9 @@
         <button
           is="emby-button"
           id="themeNext"
-          aria-label="Next page"
+          aria-label="{{nextPage}}"
           data-i18n-aria-label="nextPage"
-          title="Next page"
+          title="{{nextPage}}"
           data-i18n-title="nextPage"
         >
           <span class="material-icons" aria-hidden="true">chevron_right</span>
@@ -631,6 +635,7 @@
       const settingsValue = () =>
         JSON.stringify([
           $("#themeSettings").elements.enabled.checked,
+          $("#themeSettings").elements.scanOnLibraryRefresh.checked,
           $("#themeSettings").elements.minimumMatchStrength.value,
           $("#themeSettings").elements.targetLufs.value,
           [
@@ -770,6 +775,7 @@
         $("#themeDownloaderDetails").textContent = data.DownloaderError || "";
         updateRowActions();
         form.elements.enabled.checked = data.Enabled;
+        form.elements.scanOnLibraryRefresh.checked = data.ScanOnLibraryRefresh;
         form.elements.minimumMatchStrength.value = data.MinimumMatchStrength;
         form.elements.targetLufs.value = data.TargetLufs;
         $("#themeLibraries").replaceChildren(
@@ -1054,6 +1060,7 @@
         const form = event.currentTarget;
         if (settingsValue() === savedSettings) return;
         const enabled = form.elements.enabled.checked;
+        const scanOnLibraryRefresh = form.elements.scanOnLibraryRefresh.checked;
         const minimumMatchStrength =
           form.elements.minimumMatchStrength.valueAsNumber;
         const targetLufs = form.elements.targetLufs.valueAsNumber;
@@ -1067,6 +1074,7 @@
             method: "POST",
             body: JSON.stringify({
               enabled,
+              scanOnLibraryRefresh,
               libraries,
               minimumMatchStrength,
               targetLufs,

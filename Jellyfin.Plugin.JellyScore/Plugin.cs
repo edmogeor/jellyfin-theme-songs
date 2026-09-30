@@ -36,6 +36,7 @@ public sealed class Plugin : BasePlugin<Settings>, IHasWebPages
 public sealed class Settings : BasePluginConfiguration
 {
     public bool Enabled { get; set; } = true;
+    public bool ScanOnLibraryRefresh { get; set; } = true;
     public Guid[]? Libraries { get; set; }
     public int? MinimumMatchStrength { get; set; } = JellyScoreConstants.DefaultMatchStrength;
     public int? TargetLufs { get; set; } = JellyScoreConstants.DefaultTargetLufs;
