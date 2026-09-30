@@ -6,7 +6,7 @@ using System.Globalization;
 
 namespace Jellyfin.Plugin.JellyScore;
 
-public sealed record Work(string Title, string? OriginalTitle, int? Year, bool Series);
+public sealed record Work(string Title, string? OriginalTitle, int? Year, bool Series, bool NoCompetingEdition = false);
 public sealed record Video(string Id, string Title, string Description, string Channel, int? Seconds,
     string? Album = null, string? Track = null, string? Artist = null, int? ReleaseYear = null, DateOnly? UploadDate = null);
 public sealed record Choice(Video Video, string Recording, int Score, string Evidence);
@@ -260,6 +260,13 @@ public static partial class Matcher
     private static partial Regex SeriesEdition();
 
     private static string Normal(string value) => Regex.Replace(value.ToLowerInvariant(), @"[^\p{L}\p{N}]+", " ").Trim();
+    private static bool SameWorkTitle(Work work, string title) => new[] { work.Title, work.OriginalTitle }
+        .Where(s => !string.IsNullOrWhiteSpace(s)).Any(s => Normal(s!) == Normal(title));
+    public static bool NoCompetingEdition(Work work, string id, IReadOnlyList<(string? Id, string? Title, int? Year)> films,
+        IReadOnlyList<string?> shows) =>
+        films.Count is > 0 and < 20 && shows.Count < 20 && films.Any(r => r.Id == id && r.Year == work.Year) &&
+        !films.Any(r => r.Id != id && (r.Title is null || SameWorkTitle(work, r.Title))) &&
+        !shows.Any(title => title is null || SameWorkTitle(work, title));
     private static bool Contains(string text, string title) => (" " + Normal(text) + " ").Contains(" " + Normal(title) + " ", StringComparison.Ordinal);
     private static bool EpisodeClip(string title) => IntroScene().IsMatch(title) ||
         EpisodeNumber().IsMatch(title) && CharacterIntro().IsMatch(title);
@@ -296,7 +303,9 @@ public static partial class Matcher
         !Reject().IsMatch(video.Title) && !EpisodeClip(video.Title) &&
         (!Sequel().IsMatch(video.Title) || Sequel().IsMatch(work.Title)) &&
         Theme().IsMatch(video.Title) &&
-        (Contains(video.Title, work.Title) || work.OriginalTitle is not null && Contains(video.Title, work.OriginalTitle) || MainTheme().IsMatch(video.Title));
+        (Contains(video.Title, work.Title) || Contains(video.Description, work.Title) ||
+            work.OriginalTitle is not null && (Contains(video.Title, work.OriginalTitle) || Contains(video.Description, work.OriginalTitle)) ||
+            MainTheme().IsMatch(video.Title));
 
     private static Choice Rank(Work work, Video video, string recording, string album, int? linkedYear, bool soundtrackMatch, bool hasArtist = false)
     {
@@ -375,6 +384,7 @@ public static partial class Matcher
         // Unknown edition/year is deliberately insufficient for ambiguous remakes.
         if (work.Year is not null && video.ReleaseYear is null && linkedYear is null && !Years().IsMatch(identityText) &&
             Normal(work.Title).Split(' ').Length <= JellyScoreConstants.AmbiguousTitleWordLimit &&
+            !(work.NoCompetingEdition && workTitles.Any(s => Contains(identityText, s!))) &&
             !(work.Series && Contains(title, work.Title)) && !(Sequel().IsMatch(work.Title) && Contains(title, work.Title)))
         { reason = "Release year missing for an ambiguous title"; return null; }
         var albumMatches = Contains(album, work.Title) || work.OriginalTitle is not null && Contains(album, work.OriginalTitle);

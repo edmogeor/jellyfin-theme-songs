@@ -70,9 +70,9 @@ def scan_until(token, expected=None, expect_current=False):
                 assert field(progress, "remainingSeconds") > 0, f"running scan has no ETA: {progress}"
             saw_current |= "Sorcerer" in field(progress, "currentItem")
         if status == 200 and not field(progress, "running") and field(progress, "runId") != field(before, "runId"):
-            assert field(progress, "processed") == field(progress, "total") == 5, f"scan did not process all items: {progress}"
+            assert field(progress, "processed") == field(progress, "total") == 6, f"scan did not process all items: {progress}"
             counts = ("added", "alreadyThemed", "excluded", "noMatch", "unsupported", "failed")
-            assert sum(field(progress, key) for key in counts) == 5, f"scan counts disagree: {progress}"
+            assert sum(field(progress, key) for key in counts) == 6, f"scan counts disagree: {progress}"
             if field(progress, "excluded") + field(progress, "noMatch"):
                 assert field(progress, "rejections") and all(
                     field(item, "name") and field(item, "code") in english_strings for item in field(progress, "rejections")
@@ -225,6 +225,7 @@ for attempt in range(30):
     if status == 200 and {
         ("Movie", "Harry Potter and the Sorcerer's Stone", 2001),
         ("Movie", "Dune", 2021),
+        ("Movie", "The Shawshank Redemption", 1994),
         ("Movie", "User Theme", 2000),
         ("Series", "The Office (US)", 2005),
         ("Series", "Breaking Bad", 2008),
@@ -236,6 +237,12 @@ for attempt in range(30):
     time.sleep(2)
 else:
     raise SystemExit(f"Test media was not indexed: {status} {items}")
+status, folders = request("GET", "/Library/VirtualFolders", token=token)
+films = next(folder for folder in folders if folder["Name"] == "Films")
+options = films["LibraryOptions"]
+options["TypeOptions"] = [{"Type": "Movie", "MetadataFetchers": ["TheMovieDb"]}]
+status, _ = request("POST", "/Library/VirtualFolders/LibraryOptions", {"Id": films["ItemId"], "LibraryOptions": options}, token)
+assert status == 204, f"enable TMDb metadata provider for film fixture: {status}"
 movie = next(item for item in items["Items"] if "Sorcerer" in item["Name"])
 user_theme = next(item for item in items["Items"] if item["Name"] == "User Theme")
 first_scan = scan_until(token, "added", expect_current=True)
@@ -250,6 +257,9 @@ subprocess.run(["docker", "compose", "-f", "tests/e2e/compose.yaml", "exec", "-T
                 "/tmp/user-theme-original", "/media/movies/User Theme (2000)/theme.mp3"], check=True)
 dune = next((item for item in field(downloads, "items") if field(item, "name") == "Dune"), None)
 assert dune is not None and field(dune, "status") == "Active", f"Dune soundtrack track was not discovered: {downloads}"
+shawshank = next((item for item in field(downloads, "items") if field(item, "name") == "The Shawshank Redemption"), None)
+assert shawshank is not None and field(shawshank, "status") == "Active", f"Shawshank theme was not discovered: {downloads}"
+assert "Main Theme" in field(shawshank, "videoTitle"), f"Shawshank main theme did not beat end titles: {shawshank}"
 theme = next((item for item in field(downloads, "items") if uuid.UUID(field(item, "itemId")) == uuid.UUID(movie["Id"])), None)
 if theme is None and field(first_scan, "failed"):
     scan_until(token)

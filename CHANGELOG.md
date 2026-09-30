@@ -1,3 +1,10 @@
+## [0.1.19.0]
+
+### Improved
+
+- Find named soundtrack tracks linked by YouTube search descriptions, including *The Shawshank Redemption*'s verified 1994 recording.
+- Prefer eligible movie themes over end titles when Jellyfin's TMDb film and TV searches find no competing edition. Keep the year requirement when the provider is unavailable, disabled, or finds a clash.
+
 ## [0.1.18.0]
 
 ### Improved

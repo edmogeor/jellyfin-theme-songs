@@ -1,18 +1,23 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
+using MediaBrowser.Controller.BaseItemManager;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.MediaEncoding;
 using MediaBrowser.Controller.Providers;
+using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.IO;
+using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.JellyScore;
 
 public sealed record ThemeResult(string Result, string? ReasonCode = null);
 
-public sealed class ThemeService(ILibraryManager library, IProviderManager providers, IFileSystem fileSystem, IMediaEncoder encoder, Store store, YouTube youtube)
+// ReSharper disable once ClassNeverInstantiated.Global
+public sealed class ThemeService(ILibraryManager library, IProviderManager providers, IFileSystem fileSystem, IMediaEncoder encoder, Store store, YouTube youtube,
+    IBaseItemManager baseItemManager, ILogger<ThemeService> logger)
 {
     private readonly ConcurrentDictionary<Guid, SemaphoreSlim> _locks = new();
     private static readonly HashSet<string> AudioExtensions = new(StringComparer.OrdinalIgnoreCase) { ".mp3", ".m4a", ".flac", ".ogg", ".opus", ".wav", ".wma", ".aac" };
@@ -127,6 +132,36 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
 
     private void Refresh(BaseItem item) => providers.QueueRefresh(item.Id, new MetadataRefreshOptions(new DirectoryService(fileSystem)), RefreshPriority.High);
 
+    private async Task<bool> NoCompetingEdition(BaseItem item, Work work, CancellationToken ct)
+    {
+        if (item is not Movie || work.Year is null || !item.TryGetProviderId(MetadataProvider.Tmdb, out var tmdbId)) return false;
+        var options = library.GetLibraryOptions(item);
+        if (!baseItemManager.IsMetadataFetcherEnabled(item, options.GetTypeOptions(nameof(Movie)), "TheMovieDb") ||
+            !baseItemManager.IsMetadataFetcherEnabled(new Series(), options.GetTypeOptions(nameof(Series)), "TheMovieDb")) return false;
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(15));
+        try
+        {
+            var results = (await providers.GetRemoteSearchResults<Movie, MovieInfo>(new RemoteSearchQuery<MovieInfo>
+            {
+                SearchProviderName = "TheMovieDb",
+                SearchInfo = new MovieInfo { Name = work.Title }
+            }, timeout.Token)).Select(r => (r.GetProviderId(MetadataProvider.Tmdb), r.Name, r.ProductionYear)).ToArray();
+            var shows = (await providers.GetRemoteSearchResults<Series, SeriesInfo>(new RemoteSearchQuery<SeriesInfo>
+            {
+                SearchProviderName = "TheMovieDb",
+                SearchInfo = new SeriesInfo { Name = work.Title }
+            }, timeout.Token)).Select(r => r.Name).ToArray();
+            // ponytail: Jellyfin exposes only the first page and hides provider errors; a full page or missing target cannot establish uniqueness.
+            return Matcher.NoCompetingEdition(work, tmdbId, results, shows);
+        }
+        catch (Exception e) when (!ct.IsCancellationRequested)
+        {
+            logger.LogWarning(e, "Edition lookup failed for {ItemId}; retaining release-year requirement", item.Id);
+            return false;
+        }
+    }
+
     public async Task<ThemeResult> Process(Guid id, bool replacement, CancellationToken ct)
     {
         var gate = _locks.GetOrAdd(id, _ => new SemaphoreSlim(1));
@@ -158,17 +193,28 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
                     recordings.Add(existing.Recording);
                 });
             }
+            async Task<(Work Work, Choice? Choice, bool Checked)> Select(Work currentWork, IReadOnlyList<Video> candidates, bool checkedEdition)
+            {
+                var selected = Matcher.Select(currentWork, candidates, excludedIds, excludedRecordings, minimumMatchStrength);
+                if (item is not Movie || checkedEdition || currentWork.Year is null) return (currentWork, selected, checkedEdition);
+                var withoutYear = currentWork with { NoCompetingEdition = true };
+                var alternative = Matcher.Select(withoutYear, candidates, excludedIds, excludedRecordings, minimumMatchStrength);
+                if (alternative is null || alternative.Video.Id == selected?.Video.Id) return (currentWork, selected, false);
+                if (!await NoCompetingEdition(item, currentWork, ct)) return (currentWork, selected, true);
+                return (withoutYear, alternative, true);
+            }
             var videos = await youtube.Search(work, ct);
-            var choice = Matcher.Select(work, videos, excludedIds, excludedRecordings, minimumMatchStrength);
+            var (selectedWork, choice, editionChecked) = await Select(work, videos, false);
+            work = selectedWork;
             if (choice is null)
             {
                 videos = videos.Concat(await youtube.Search(work, ct, nextPage: true)).DistinctBy(video => video.Id).ToArray();
-                choice = Matcher.Select(work, videos, excludedIds, excludedRecordings, minimumMatchStrength);
+                (work, choice, editionChecked) = await Select(work, videos, editionChecked);
             }
             if (choice is null)
             {
                 videos = videos.Concat(await youtube.SearchAlbumTrack(work, ct)).DistinctBy(video => video.Id).ToArray();
-                choice = Matcher.Select(work, videos, excludedIds, excludedRecordings, minimumMatchStrength);
+                (work, choice, _) = await Select(work, videos, editionChecked);
             }
             if (choice is null)
             {

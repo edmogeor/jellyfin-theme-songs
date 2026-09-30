@@ -34,6 +34,36 @@ var dream = video("M-bWFbJlwXk", "Dream of Arrakis", "", 189) with
 check(YouTube.FirstTrack("DUNE Official Soundtrack\nTracklist:\n1. Dream of Arrakis\n2. Herald of the Change") == "Dream of Arrakis",
     "album tracklist supplies a generic search hint");
 check(Matcher.Promising(work, video("bbbbbbbbbbb", "Dune 2021 Main Theme", "", 120)), "flat theme is shortlisted");
+var shawshank = new Work("The Shawshank Redemption", null, 1994, false);
+var endTitle = new Video("Q2ctsooeJBU", "End Title", "End Title · Thomas Newman The Shawshank Redemption ℗ 1994 Epic Records", "Epic Soundtrax", 246,
+    Album: "The Shawshank Redemption", Track: "End Title", Artist: "Thomas Newman", ReleaseYear: 1994);
+check(Matcher.Promising(shawshank, endTitle) && Matcher.Select(shawshank, [endTitle], new HashSet<string>(), new HashSet<string>(), 50)?.Video.Id == endTitle.Id,
+    "named soundtrack track linked by search description reaches metadata evaluation");
+check(!Matcher.Promising(shawshank, endTitle with { Description = "End Title · Thomas Newman" }),
+    "a generic track title without a work link is not shortlisted");
+(string? Id, string? Title, int? Year) knownFilm = ("123", shawshank.Title, 1994);
+(string? Id, string? Title, int? Year) otherFilm = ("456", "Another Film", 2020);
+check(Matcher.NoCompetingEdition(shawshank, "123", [knownFilm, otherFilm], []),
+    "unrelated search results do not make an identified film ambiguous");
+check(!Matcher.NoCompetingEdition(shawshank, "123", [knownFilm, ("456", shawshank.Title, 2020)], []),
+    "a same-title remake keeps the release-year requirement");
+check(!Matcher.NoCompetingEdition(shawshank, "123", [knownFilm], [shawshank.Title]) &&
+    !Matcher.NoCompetingEdition(shawshank, "123", [knownFilm], Enumerable.Repeat<string?>("Other Show", 20).ToArray()),
+    "same-title TV edition or truncated TV results keep the release-year requirement");
+check(!Matcher.NoCompetingEdition(shawshank, "123", [otherFilm], []) &&
+    !Matcher.NoCompetingEdition(shawshank, "123", [], []) &&
+    !Matcher.NoCompetingEdition(shawshank, "123", Enumerable.Repeat(knownFilm, 20).ToArray(), []),
+    "missing target, failed search, and truncated pages cannot establish an unambiguous edition");
+var yearlessTheme = video("bbbbbbbbbbb", "The Shawshank Redemption Main Theme", "");
+check(Matcher.Evaluate(shawshank, yearlessTheme) is null &&
+    Matcher.Evaluate(shawshank with { NoCompetingEdition = true }, yearlessTheme) is not null,
+    "catalog evidence permits a yearless theme linked in its title");
+check(Matcher.Select(shawshank, [endTitle, yearlessTheme], new HashSet<string>(), new HashSet<string>(), 50)?.Video.Id == endTitle.Id &&
+    Matcher.Select(shawshank with { NoCompetingEdition = true }, [endTitle, yearlessTheme], new HashSet<string>(), new HashSet<string>(), 50)?.Video.Id == yearlessTheme.Id,
+    "edition lookup can promote a yearless main theme over a soundtrack fallback");
+check(Matcher.Evaluate(shawshank with { NoCompetingEdition = true }, video("bbbbbbbbbbb", "Main Theme", shawshank.Title)) is null &&
+    Matcher.Evaluate(shawshank with { NoCompetingEdition = true }, yearlessTheme with { Title = "The Shawshank Redemption 2026 Main Theme" }) is null,
+    "catalog evidence never replaces a work link or overrides a conflicting year");
 check(!Matcher.Promising(work, video("bbbbbbbbbbb", "Dune 2021 scene", "", 120)), "scene clip avoids full metadata fetch");
 check(!Matcher.Promising(work, video("bbbbbbbbbbb", "Dune 2021 Full Album", "", 4460)), "full album is not shortlisted for download");
 check(Matcher.Select(work, [dream], new HashSet<string>(), new HashSet<string>())?.Video.Id == dream.Id,

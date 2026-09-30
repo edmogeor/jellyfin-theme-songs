@@ -8,10 +8,13 @@ movie() {
   folder="${4:-/media/movies}/$1 ($3)"
   mkdir -p "$folder"
   /usr/lib/jellyfin-ffmpeg/ffmpeg -loglevel error -f lavfi -i color=c=black:s=320x240:r=1 -t 1 -c:v mpeg4 -y "$folder/$1.mp4"
-  printf '<movie><title>%s</title><originaltitle>%s</originaltitle><year>%s</year><lockdata>true</lockdata></movie>\n' "$2" "$2" "$3" > "$folder/movie.nfo"
+  tmdb=''
+  if [ -n "${5:-}" ]; then tmdb="<uniqueid type=\"tmdb\">$5</uniqueid>"; fi
+  printf '<movie><title>%s</title><originaltitle>%s</originaltitle><year>%s</year>%s<lockdata>true</lockdata></movie>\n' "$2" "$2" "$3" "$tmdb" > "$folder/movie.nfo"
 }
 movie "Harry Potter and the Sorcerer's Stone" 'Harry Potter and the Sorcerer&apos;s Stone' 2001
 movie Dune Dune 2021
+movie 'The Shawshank Redemption' 'The Shawshank Redemption' 1994 /media/movies 278
 movie 'User Theme' 'User Theme' 2000
 /usr/lib/jellyfin-ffmpeg/ffmpeg -loglevel error -f lavfi -i anullsrc=r=44100:cl=mono -t 2 -c:a libmp3lame -y '/media/movies/User Theme (2000)/theme.mp3'
 cp '/media/movies/User Theme (2000)/theme.mp3' /tmp/user-theme-original
