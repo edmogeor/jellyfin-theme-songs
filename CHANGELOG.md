@@ -1,3 +1,16 @@
+## [0.1.22.0]
+
+### Added
+
+- Optionally save YouTube cookies in the administrator settings, with guidance and labels in every supported language.
+- Use an installed JavaScript runtime or download a checksum-verified Deno release for YouTube extraction.
+
+### Improved
+
+- Pace yt-dlp requests and pause after YouTube rate-limit errors, while allowing audio conversion to overlap the next search.
+- Show each active scan item's search, download, or audio-processing stage.
+- Retry transient yt-dlp and Deno installation failures.
+
 ## [0.1.21.0]
 
 ### Added

@@ -15,7 +15,8 @@ public sealed class ThemeController(ThemeService themes, ThemeScan scan, ITaskMa
         Libraries = Plugin.Instance.Configuration.SelectedLibraries(library),
         MinimumMatchStrength = Plugin.Instance.Configuration.EffectiveMinimumMatchStrength,
         TargetLufs = Plugin.Instance.Configuration.EffectiveTargetLufs,
-        YouTube.DownloaderAvailable, YouTube.DownloaderError,
+        Plugin.Instance.Configuration.YouTubeCookies,
+        YouTube.DownloaderAvailable, YouTube.DownloaderError, YouTube.RuntimeError,
         LibrariesAvailable = library.GetVirtualFolders().Select(f => new { f.Name, f.ItemId }) };
 
     [HttpPost("downloader/retry")]
@@ -32,19 +33,22 @@ public sealed class ThemeController(ThemeService themes, ThemeScan scan, ITaskMa
         return stream is null ? NotFound() : File(stream, "application/json");
     }
 
-    public sealed record SettingsRequest(bool Enabled, Guid[]? Libraries, int? MinimumMatchStrength, int? TargetLufs, bool? ScanOnLibraryRefresh);
+    public sealed record SettingsRequest(bool Enabled, Guid[]? Libraries, int? MinimumMatchStrength, int? TargetLufs, bool? ScanOnLibraryRefresh, string? YouTubeCookies);
 
     [HttpPost("settings")]
     public IActionResult Save([FromBody] SettingsRequest request)
     {
         if (request.MinimumMatchStrength is < JellyScoreConstants.MinimumMatchStrength or > JellyScoreConstants.MaximumMatchStrength) return BadRequest();
         if (request.TargetLufs is < JellyScoreConstants.MinimumTargetLufs or > JellyScoreConstants.MaximumTargetLufs) return BadRequest();
+        if (request.YouTubeCookies is { Length: > 0 } cookies && !YouTube.ValidCookies(cookies))
+            return BadRequest(new { Code = "invalidCookies" });
         var config = Plugin.Instance.Configuration;
         config.Enabled = request.Enabled;
         if (request.ScanOnLibraryRefresh is { } scanOnLibraryRefresh) config.ScanOnLibraryRefresh = scanOnLibraryRefresh;
         config.Libraries = request.Libraries ?? [];
         if (request.MinimumMatchStrength is { } minimumMatchStrength) config.MinimumMatchStrength = minimumMatchStrength;
         if (request.TargetLufs is { } targetLufs) config.TargetLufs = targetLufs;
+        if (request.YouTubeCookies is not null) config.YouTubeCookies = request.YouTubeCookies.Length == 0 ? null : request.YouTubeCookies;
         Plugin.Instance.UpdateConfiguration(config);
         return NoContent();
     }

@@ -1,7 +1,3 @@
-> [!WARNING]
-> **Currently this plugin is limited:**
-> yt-dlp is limited by challenging IPs, and so downloads are being blocked. Currently looking for a solution.
-
 <div align="center">
   <img src="jellyscore.svg" width="600" alt="JellyScore" />
   <p>
@@ -38,7 +34,9 @@ JellyScore automatically downloads theme music from YouTube for your movies and 
 3. Open JellyScore. All libraries are selected by default, but you can choose which to include, independently control processing new items and scanning after Jellyfin library scans, or set a minimum match strength (0–100). Higher values skip weaker matches. The default is 50.
 4. Select **Scan libraries** to search your existing items now. Installing the plugin does not start a scan.
 
-Jellyfin needs permission to write to your media folders and plugin configuration directory. Each movie needs its own folder. On first use JellyScore downloads and verifies [yt-dlp](https://github.com/yt-dlp/yt-dlp) for your server's platform from its official releases, so GitHub must be reachable, but you do not need an API key. Later searches reuse the cached tool.
+Jellyfin needs permission to write to your media folders and plugin configuration directory. Each movie needs its own folder. On first use JellyScore downloads and verifies [yt-dlp](https://github.com/yt-dlp/yt-dlp) for your server's platform from its official releases. YouTube extraction also needs a JavaScript runtime: JellyScore uses a supported Deno or Node.js installation if available, or downloads and verifies Deno on supported platforms. GitHub must be reachable for these downloads, but you do not need an API key. Later searches reuse the cached tools.
+
+You can optionally paste [YouTube cookies in Netscape `cookies.txt` format](https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies) into the administrator settings. They are saved in Jellyfin's plugin configuration and used only for yt-dlp requests. Using an account with yt-dlp may put that account at risk of suspension.
 
 ## Manage your theme music
 
@@ -62,7 +60,7 @@ make test-unit
 | `make test-smoke` | Reset Docker and check the Jellyfin admin API without YouTube. |
 | `make test-e2e` | Reset Docker and test downloading, refreshing, and deleting theme music. |
 | `make up` | Keep a test server running at `http://127.0.0.1:18096`. |
-| `make package` | Package the plugin with a yt-dlp release identifier and checksums, without its executable. |
+| `make package` | Package the plugin with yt-dlp and Deno release identifiers and checksums, without executables. |
 
 Run `make setup` to install the .NET tools and Node dependencies before `make check`. The end-to-end tests need Docker, Python 3, curl, and the .NET 10 SDK. The test server uses `user` / `password`. To install a local build, run `make package` and use `dist/JellyScore.zip`.
 

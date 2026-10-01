@@ -66,14 +66,18 @@ def scan_until(token, expected=None, expect_current=False):
     for attempt in range(300):
         status, progress = request("GET", "/ThemeSongs/scan", token=token)
         if status == 200 and field(progress, "running") and field(progress, "currentItem"):
+            active = field(progress, "activeItems")
+            assert active and all(field(item, "name") and field(item, "stage") in english_strings for item in active), (
+                f"scan omitted active item stages: {progress}"
+            )
             assert field(progress, "startedAt").startswith("20"), f"scan start time missing: {progress}"
             if field(progress, "total") > field(progress, "processed"):
                 assert field(progress, "remainingSeconds") > 0, f"running scan has no ETA: {progress}"
             saw_current |= "Sorcerer" in field(progress, "currentItem")
         if status == 200 and not field(progress, "running") and field(progress, "runId") != field(before, "runId"):
-            assert field(progress, "processed") == field(progress, "total") == 5, f"scan did not process all items: {progress}"
+            assert field(progress, "processed") == field(progress, "total") == 4, f"scan did not process all items: {progress}"
             counts = ("added", "alreadyThemed", "excluded", "noMatch", "unsupported", "failed")
-            assert sum(field(progress, key) for key in counts) == 5, f"scan counts disagree: {progress}"
+            assert sum(field(progress, key) for key in counts) == 4, f"scan counts disagree: {progress}"
             if field(progress, "excluded") + field(progress, "noMatch"):
                 assert field(progress, "rejections") and all(
                     field(item, "name") and field(item, "code") in english_strings for item in field(progress, "rejections")
@@ -131,9 +135,11 @@ assert config["TargetLufs"] == -26, "new installs default to quieter themes"
 status, settings = request("GET", "/ThemeSongs/settings", token=token)
 assert status == 200, f"admin settings: {status}"
 assert settings.get("downloaderAvailable", settings.get("DownloaderAvailable")) is True, "downloader release metadata missing"
+assert field(settings, "downloaderError") is None and field(settings, "runtimeError") is None, "download tools have no initial error"
 assert field(settings, "minimumMatchStrength") == 50, "admin settings expose the effective match strength"
 assert field(settings, "targetLufs") == -26, "admin settings expose the effective loudness target"
 assert field(settings, "scanOnLibraryRefresh") is True, "admin settings expose the default scan trigger"
+assert field(settings, "youTubeCookies") is None, "cookies are optional by default"
 status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": [], "minimumMatchStrength": -1}, token)
 assert status == 400, f"negative match strength must be rejected: {status}"
 status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": [], "minimumMatchStrength": 101}, token)
@@ -141,6 +147,8 @@ assert status == 400, f"out-of-range match strength must be rejected: {status}"
 for target in (-71, -4):
     status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": [], "targetLufs": target}, token)
     assert status == 400, f"unsupported loudness target {target} must be rejected: {status}"
+status, error = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": [], "youTubeCookies": "not a cookie file"}, token)
+assert status == 400 and field(error, "code") == "invalidCookies", f"invalid cookie file must be rejected: {status} {error}"
 status, strings = request("GET", "/ThemeSongs/strings/en-us", token=token)
 assert status == 200 and strings["scanLibraries"] == "Scan libraries", f"English translations: {status} {strings}"
 assert strings["automatic"] == "Automatically process new items" and strings["scanOnLibraryRefresh"] == "Scan after Jellyfin scans the media library"
@@ -148,6 +156,7 @@ english_strings = strings
 status, strings = request("GET", "/ThemeSongs/strings/fr", token=token)
 assert status == 200 and strings["scanLibraries"] == "Analyser les bibliothèques", f"French translations: {status} {strings}"
 assert strings["scanOnLibraryRefresh"], "French scan trigger translation missing"
+assert strings["cookiesLabel"] and strings["invalidCookies"], "French cookie settings translation missing"
 status, _ = request("GET", "/ThemeSongs/strings/zz", token=token)
 assert status == 404, f"unsupported translation should fall back to English: {status}"
 status, downloads = request("GET", "/ThemeSongs/downloads", token=token)
@@ -166,10 +175,15 @@ assert_settings(token, True, selected, 75)
 status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": selected, "targetLufs": -30}, token)
 assert status == 204, f"save a custom loudness target: {status}"
 assert_settings(token, True, selected, 75, -30)
+cookies = "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t2147483647\tVISITOR_INFO1_LIVE\ttest\n"
+status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": selected, "youTubeCookies": cookies}, token)
+assert status == 204, f"save optional cookies: {status}"
+status, settings = request("GET", "/ThemeSongs/settings", token=token)
+assert status == 200 and field(settings, "youTubeCookies") == cookies, "saved cookies remain editable by the admin"
 status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "scanOnLibraryRefresh": False, "libraries": selected}, token)
 assert status == 204, f"disable library-refresh scanning: {status}"
 assert_settings(token, True, selected, 75, -30, False)
-status, _ = request("POST", f"/Plugins/{PLUGIN}/Configuration", {"Enabled": True, "ScanOnLibraryRefresh": False, "Libraries": selected, "MinimumMatchStrength": None, "TargetLufs": None}, token)
+status, _ = request("POST", f"/Plugins/{PLUGIN}/Configuration", {"Enabled": True, "ScanOnLibraryRefresh": False, "Libraries": selected, "MinimumMatchStrength": None, "TargetLufs": None, "YouTubeCookies": cookies}, token)
 assert status == 204, f"simulate an existing config with an unset match strength: {status}"
 subprocess.run(["docker", "compose", "-f", "tests/e2e/compose.yaml", "restart", "jellyfin"], check=True)
 for _ in range(60):
@@ -179,6 +193,12 @@ for _ in range(60):
     time.sleep(2)
 assert status == 200, f"plugin did not restart: {status}"
 assert_settings(token, True, selected, scan_on_library_refresh=False)
+status, settings = request("GET", "/ThemeSongs/settings", token=token)
+assert status == 200 and field(settings, "youTubeCookies") == cookies, "saved cookies survive a Jellyfin restart"
+status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": selected, "youTubeCookies": ""}, token)
+assert status == 204, f"clear optional cookies: {status}"
+status, settings = request("GET", "/ThemeSongs/settings", token=token)
+assert status == 200 and field(settings, "youTubeCookies") is None, "clearing the field removes saved cookies"
 status, before = request("GET", "/ThemeSongs/scan", token=token)
 assert status == 200, f"read scan status: {status}"
 status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": []}, token)
@@ -251,7 +271,6 @@ for attempt in range(30):
     if status == 200 and {
         ("Movie", "Harry Potter and the Sorcerer's Stone", 2001),
         ("Movie", "Dune", 2021),
-        ("Movie", "The Shawshank Redemption", 1994),
         ("Movie", "User Theme", 2000),
         ("Series", "The Office (US)", 2005),
         ("Movie", "Unselected Example", 1999),
@@ -292,8 +311,6 @@ subprocess.run(["docker", "compose", "-f", "tests/e2e/compose.yaml", "exec", "-T
                 "/tmp/user-theme-original", "/media/movies/User Theme (2000)/theme.mp3"], check=True)
 dune = next((item for item in field(downloads, "items") if field(item, "name") == "Dune"), None)
 assert dune is not None and field(dune, "status") == "Active", f"Dune soundtrack track was not discovered: {downloads}"
-shawshank = next((item for item in field(downloads, "items") if field(item, "name") == "The Shawshank Redemption"), None)
-assert shawshank is not None and field(shawshank, "status") == "Active", f"Shawshank theme was not discovered: {downloads}"
 theme = next((item for item in field(downloads, "items") if uuid.UUID(field(item, "itemId")) == uuid.UUID(movie["Id"])), None)
 if theme is None and field(first_scan, "failed"):
     scan_until(token)

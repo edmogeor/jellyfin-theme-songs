@@ -14,7 +14,6 @@ movie() {
 }
 movie "Harry Potter and the Sorcerer's Stone" 'Harry Potter and the Sorcerer&apos;s Stone' 2001
 movie Dune Dune 2021
-movie 'The Shawshank Redemption' 'The Shawshank Redemption' 1994 /media/movies 278
 movie 'User Theme' 'User Theme' 2000
 /usr/lib/jellyfin-ffmpeg/ffmpeg -loglevel error -f lavfi -i anullsrc=r=44100:cl=mono -t 2 -c:a libmp3lame -y '/media/movies/User Theme (2000)/theme.mp3'
 cp '/media/movies/User Theme (2000)/theme.mp3' /tmp/user-theme-original

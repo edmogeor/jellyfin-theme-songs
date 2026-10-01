@@ -91,6 +91,7 @@ public sealed class ScanStatus
     public bool Running { get; set; }
     public bool Cancelled { get; set; }
     public string? CurrentItem { get; set; }
+    public ScanActiveItem[] ActiveItems { get; set; } = [];
     public int Processed { get; set; }
     public int Total { get; set; }
     public int Added { get; set; }
@@ -100,6 +101,8 @@ public sealed class ScanStatus
     public ScanRejection[] Rejections { get; set; } = [];
     public int Unsupported { get; set; }
     public int Failed { get; set; }
+    // ReSharper disable once UnusedMember.Global
+    public DateTimeOffset? RateLimitedUntil => YouTube.RateLimitedUntil;
     // ReSharper disable once UnusedMember.Global
     public double? RemainingSeconds
     {
@@ -118,6 +121,7 @@ public sealed class ScanStatus
 
 // ReSharper disable NotAccessedPositionalProperty.Global
 public sealed record ScanRejection(string Name, string Code);
+public sealed record ScanActiveItem(string Name, string Stage);
 // ReSharper restore NotAccessedPositionalProperty.Global
 
 // ReSharper disable once ClassNeverInstantiated.Global
@@ -137,7 +141,7 @@ public sealed class ThemeScan(ILibraryManager library, ThemeService themes, Stor
         _status = new ScanStatus { RunId = Guid.NewGuid(), StartedAt = DateTimeOffset.UtcNow, Running = true,
             PriorSecondsPerItem = prior is > 0 and < JellyScoreConstants.ScanMaximumPriorSecondsPerItem ? prior.Value : JellyScoreConstants.ScanInitialSecondsPerItem };
         var status = _status;
-        var active = new Dictionary<Guid, string>();
+        var active = new Dictionary<Guid, ScanActiveItem>();
         try
         {
             themes.ResetSuppression();
@@ -156,10 +160,22 @@ public sealed class ThemeScan(ILibraryManager library, ThemeService themes, Stor
                 if (batch.Length == 0) break;
                 await Parallel.ForEachAsync(batch, new ParallelOptions { MaxDegreeOfParallelism = JellyScoreConstants.ScanConcurrency, CancellationToken = ct }, async (item, token) =>
                 {
-                    lock (status) { active[item.Id] = item.Name; status.CurrentItem = string.Join(", ", active.Values); }
+                    lock (status)
+                    {
+                        active[item.Id] = new ScanActiveItem(item.Name, "stagePreparing");
+                        status.ActiveItems = active.Values.ToArray();
+                        status.CurrentItem = string.Join(", ", active.Values.Select(entry => entry.Name));
+                    }
                     try
                     {
-                        var result = await themes.Process(item.Id, false, token);
+                        var result = await themes.Process(item.Id, false, token, stage =>
+                        {
+                            lock (status)
+                            {
+                                active[item.Id] = new ScanActiveItem(item.Name, stage);
+                                status.ActiveItems = active.Values.ToArray();
+                            }
+                        });
                         lock (status)
                         {
                             if (result.Result == "Added") status.Added++;
@@ -175,8 +191,9 @@ public sealed class ThemeScan(ILibraryManager library, ThemeService themes, Stor
                     }
                     catch (InvalidOperationException) { lock (status) status.Unsupported++; }
                     catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+                    catch (RateLimitFailure e) { logger.LogWarning("Theme scan paused: {Message}", e.Message); throw; }
                     catch (Exception e) { lock (status) status.Failed++; logger.LogWarning("Theme scan failed for {ItemId}: {Message}", item.Id, e.Message); }
-                    finally { lock (status) { active.Remove(item.Id); status.CurrentItem = active.Count == 0 ? null : string.Join(", ", active.Values); } }
+                    finally { lock (status) { active.Remove(item.Id); status.ActiveItems = active.Values.ToArray(); status.CurrentItem = active.Count == 0 ? null : string.Join(", ", active.Values.Select(entry => entry.Name)); } }
                     lock (status) { status.Processed++; status.LastCompletedAt = DateTimeOffset.UtcNow; progress.Report((double)JellyScoreConstants.ProgressComplete * status.Processed / Math.Max(1, status.Total)); }
                 });
                 if (batch.Length < JellyScoreConstants.ScanBatchSize) break;
@@ -186,6 +203,6 @@ public sealed class ThemeScan(ILibraryManager library, ThemeService themes, Stor
                 store.Change(s => s.ScanSecondsPerItem = (status.LastCompletedAt - status.StartedAt).TotalSeconds / status.Processed);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { status.Cancelled = true; throw; }
-        finally { status.Running = false; status.CurrentItem = null; }
+        finally { status.Running = false; status.CurrentItem = null; status.ActiveItems = []; }
     }
 }

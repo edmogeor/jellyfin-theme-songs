@@ -162,7 +162,7 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
         }
     }
 
-    public async Task<ThemeResult> Process(Guid id, bool replacement, CancellationToken ct)
+    public async Task<ThemeResult> Process(Guid id, bool replacement, CancellationToken ct, Action<string>? reportStage = null)
     {
         var gate = _locks.GetOrAdd(id, _ => new SemaphoreSlim(1));
         await gate.WaitAsync(ct);
@@ -203,6 +203,7 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
                 if (!await NoCompetingEdition(item, currentWork, ct)) return (currentWork, selected, true);
                 return (withoutYear, alternative, true);
             }
+            reportStage?.Invoke("stageSearching");
             var videos = await youtube.Search(work, ct);
             var (selectedWork, choice, editionChecked) = await Select(work, videos, false);
             work = selectedWork;
@@ -230,7 +231,9 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
                 var temporary = Path.Combine(folder, ".theme-" + Guid.NewGuid().ToString("N") + ".mp3");
                 try
                 {
-                    try { await Audio.Convert(choice, temporary, encoder, Plugin.Instance.Configuration.EffectiveTargetLufs, ct); }
+                    reportStage?.Invoke("stageDownloading");
+                    try { await Audio.Convert(choice, temporary, encoder, Plugin.Instance.Configuration.EffectiveTargetLufs, ct,
+                        reportStage is null ? null : () => reportStage("stageProcessing")); }
                     catch (DownloadFailure) when (sourceAttempt == 0)
                     {
                         excludedIds.Add(choice.Video.Id);

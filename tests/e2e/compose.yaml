@@ -11,7 +11,7 @@ services:
       retries: 60
     volumes:
       - jellyfin-config:/config
-      - ../../dist/universal:/config/plugins/theme-songs
+      - ../../dist/e2e:/config/plugins/theme-songs
       - media:/media
 volumes:
   jellyfin-config:

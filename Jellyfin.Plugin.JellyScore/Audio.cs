@@ -27,7 +27,7 @@ public static class Audio
         await process.WaitForExitAsync(ct);
         var error = (await stderr).Trim();
         var output = await stdout + "\n" + error;
-        if (process.ExitCode != 0) throw new IOException($"Audio tool '{Path.GetFileName(executable)}' failed (exit {process.ExitCode}): {error[..Math.Min(error.Length, JellyScoreConstants.ToolErrorMessageMaximumLength)]}");
+        if (process.ExitCode != 0) throw new IOException($"Audio tool '{Path.GetFileName(executable)}' failed (exit {process.ExitCode}): {error[^Math.Min(error.Length, JellyScoreConstants.ToolErrorMessageMaximumLength)..]}");
         return output;
     }
 
@@ -50,13 +50,14 @@ public static class Audio
     public static string Filter(double gain, double duration) =>
         $"volume={gain.ToString("R", CultureInfo.InvariantCulture)}dB,afade=t=in:d={JellyScoreConstants.FadeSeconds},afade=t=out:st={Math.Max(0, duration - JellyScoreConstants.FadeSeconds).ToString("R", CultureInfo.InvariantCulture)}:d={JellyScoreConstants.FadeSeconds}";
 
-    public static async Task Convert(Choice choice, string destination, IMediaEncoder encoder, int targetLufs, CancellationToken ct)
+    public static async Task Convert(Choice choice, string destination, IMediaEncoder encoder, int targetLufs, CancellationToken ct, Action? onDownloaded = null)
     {
         var raw = destination + ".source";
         try
         {
             await YouTube.Download(choice.Video.Id, raw, ct);
             if (!File.Exists(raw) || new FileInfo(raw).Length is 0 or > JellyScoreConstants.RawAudioMaximumBytes) throw new DownloadFailure("Downloaded audio is missing or too large.");
+            onDownloaded?.Invoke();
             using var source = JsonDocument.Parse(await Run(encoder.ProbePath, ["-v", "error", "-show_entries", "format=duration", "-of", "json", raw], ct));
             if (!double.TryParse(source.RootElement.GetProperty("format").GetProperty("duration").GetString(), CultureInfo.InvariantCulture, out var sourceDuration) ||
                 !double.IsFinite(sourceDuration) || sourceDuration < 1) throw new IOException("Downloaded audio has no valid duration.");

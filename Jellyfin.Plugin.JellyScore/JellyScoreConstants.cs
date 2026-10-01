@@ -9,6 +9,9 @@ internal static class JellyScoreConstants
     internal const string DownloaderVersionFile = "yt-dlp-version";
     internal const string DownloaderChecksumsFile = "SHA2-256SUMS";
     internal const string DownloaderReleaseUrl = "https://github.com/yt-dlp/yt-dlp/releases/download";
+    internal const string RuntimeVersionFile = "deno-version";
+    internal const string RuntimeChecksumsFile = "deno-checksums";
+    internal const string RuntimeReleaseUrl = "https://github.com/denoland/deno/releases/download";
     internal const string DownloaderWindowsX64 = "yt-dlp.exe";
     internal const string DownloaderWindowsArm64 = "yt-dlp_arm64.exe";
     internal const string DownloaderMacos = "yt-dlp_macos";
@@ -60,13 +63,17 @@ internal static class JellyScoreConstants
     internal const int TrackSearchResultCount = 10;
     internal const int SearchShortlistSize = 8;
     internal const int AlbumTrackShortlistSize = 4;
-    internal const int MetadataConcurrency = 4;
-    internal const int DetailConcurrency = 2;
     internal const int ToolAttempts = 3;
+    internal const int InstallerAttempts = 3;
     internal const int DownloaderRetries = 2;
     internal const int DownloaderSocketTimeoutSeconds = 20;
     internal const int DownloaderTimeoutMinutes = 2;
+    internal const int RuntimeCheckTimeoutSeconds = 5;
+    internal const int MaximumCookiesCharacters = 1_000_000;
     internal const int DownloadRetryBaseSeconds = 2;
+    internal const double InternalRequestSpacingSeconds = 0.75;
+    internal const int DownloadSpacingSeconds = 7;
+    internal const int RateLimitCooldownMinutes = 30;
     internal const string DownloaderMaximumFileSize = "30M";
 
     internal const int DefaultTargetLufs = -26;
@@ -88,7 +95,8 @@ internal static class JellyScoreConstants
     internal const int ScanInitialSecondsPerItem = 20;
     internal const int ScanMaximumPriorSecondsPerItem = 3600;
     internal const int ScanBatchSize = 100;
-    internal const int ScanConcurrency = 3;
+    // One item can convert audio while another uses the globally paced yt-dlp gate.
+    internal const int ScanConcurrency = 2;
     internal const int ScanRecentRejections = 5;
     internal const int ProgressComplete = 100;
     internal const int AdminPageSize = 25;

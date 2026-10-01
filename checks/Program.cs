@@ -1,6 +1,7 @@
 using Jellyfin.Plugin.JellyScore;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Text.Json;
 
 var work = new Work("Dune", null, 2021, false);
 const string licensed = "Provided to YouTube by Warner Records\nDune Main Theme · Hans Zimmer\nAlbum: Dune 2021 (Original Motion Picture Soundtrack)";
@@ -11,6 +12,17 @@ using (var page = new StreamReader(typeof(YouTube).Assembly.GetManifestResourceS
     var html = page.ReadToEnd();
     check(html.Contains("Scan after Jellyfin scans the media library", StringComparison.Ordinal) && !html.Contains("{{", StringComparison.Ordinal),
         "the bundled admin page has English fallbacks from the translation dictionary");
+}
+foreach (var locale in new[] { "da", "de", "en-us", "es", "fi", "fr", "it", "ja", "ko", "nb", "nl", "pl", "pt-br", "ru", "sv", "zh-cn" })
+{
+    using var stream = typeof(YouTube).Assembly.GetManifestResourceStream($"Jellyfin.Plugin.JellyScore.Strings.{locale}.json")!;
+    using var strings = JsonDocument.Parse(stream);
+    check(new[] { "cookiesLabel", "cookiesHelp", "cookiesGuide", "invalidCookies", "runtimeInstallFailed",
+        "scanItemStage", "stagePreparing", "stageSearching", "stageDownloading", "stageProcessing" }.All(key =>
+        strings.RootElement.TryGetProperty(key, out var value) && !string.IsNullOrWhiteSpace(value.GetString())) &&
+        strings.RootElement.GetProperty("rateLimited").GetString()!.Contains("{0}", StringComparison.Ordinal) &&
+        strings.RootElement.GetProperty("scanItemStage").GetString()!.Contains("{1}", StringComparison.Ordinal),
+        $"cookie settings and scan status are translated for {locale}");
 }
 
 var original = video("aaaaaaaaaaa", "Dune Main Theme", licensed);
@@ -47,6 +59,19 @@ check(Matcher.Promising(shawshank, endTitle) && Matcher.Select(shawshank, [endTi
     "named soundtrack track linked by search description reaches metadata evaluation");
 check(!Matcher.Promising(shawshank, endTitle with { Description = "End Title · Thomas Newman" }),
     "a generic track title without a work link is not shortlisted");
+check(YouTube.IsRateLimitError("ERROR: HTTP Error 429: Too Many Requests") &&
+    YouTube.IsRateLimitError("Sign in to confirm you're not a bot") &&
+    YouTube.IsRateLimitError("This content isn't available, try again later") &&
+    !YouTube.IsRateLimitError("HTTP Error 403: Forbidden") &&
+    !YouTube.IsRateLimitError("Video unavailable"),
+    "YouTube challenges pause requests without treating unrelated failures as rate limits");
+check(YouTube.ValidCookies("# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t2147483647\tVISITOR_INFO1_LIVE\ttest\n") &&
+    !YouTube.ValidCookies("VISITOR_INFO1_LIVE=test") && !YouTube.ValidCookies("# HTTP Cookie File\n\0"),
+    "only bounded Netscape cookie files can be saved");
+check(YouTube.DenoAsset(false, false, Architecture.X64) == "deno-x86_64-unknown-linux-gnu.zip" &&
+    YouTube.DenoAsset(true, false, Architecture.Arm64) == "deno-aarch64-pc-windows-msvc.zip" &&
+    YouTube.DenoAsset(false, false, Architecture.X64, musl: true) is null,
+    "the bundled Deno fallback is only offered on supported platforms");
 (string? Id, string? Title, int? Year) knownFilm = ("123", shawshank.Title, 1994);
 (string? Id, string? Title, int? Year) otherFilm = ("456", "Another Film", 2020);
 check(Matcher.NoCompetingEdition(shawshank, "123", [knownFilm, otherFilm], []),
@@ -273,8 +298,9 @@ scanEstimate.StartedAt = DateTimeOffset.UtcNow.AddSeconds(-60);
 check(scanEstimate.RemainingSeconds is > 279 and < 282, "a slow item adds one overdue interval rather than inflating every remaining item");
 scanEstimate.Running = false;
 check(scanEstimate.RemainingSeconds is null, "completed scans do not show an ETA");
-check(!File.Exists("dist/JellyScore.zip") || System.IO.Compression.ZipFile.OpenRead("dist/JellyScore.zip").Entries.Count == 3,
-    "plugin archive contains DLL, pinned version, and checksums only");
+check(!File.Exists("dist/JellyScore.zip") || System.IO.Compression.ZipFile.OpenRead("dist/JellyScore.zip").Entries.Select(e => e.Name).Order().SequenceEqual(
+    new[] { "Jellyfin.Plugin.JellyScore.dll", "SHA2-256SUMS", "deno-checksums", "deno-version", "yt-dlp-version" }.Order()),
+    "plugin archive contains only the DLL and pinned release metadata");
 var folder = Path.Combine(Path.GetTempPath(), "theme-songs-checks-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(folder);
 try
@@ -289,12 +315,24 @@ try
     check(await YouTube.EnsureDownloader(binary, hash, fetch, CancellationToken.None) == binary && downloads == 1,
         "valid cached binary avoids another download");
     File.WriteAllText(binary, "corrupt");
-    try { await YouTube.EnsureDownloader(binary, hash, _ => Task.FromResult<Stream>(new MemoryStream([1, 2, 3])), CancellationToken.None); }
+    var mismatches = 0;
+    Task<Stream> wrongChecksum(CancellationToken _) { mismatches++; return Task.FromResult<Stream>(new MemoryStream([1, 2, 3])); }
+    try { await YouTube.EnsureDownloader(binary, hash, wrongChecksum, CancellationToken.None); }
     catch (IOException) { }
-    check(File.ReadAllText(binary) == "corrupt" && Directory.GetFiles(Path.GetDirectoryName(binary)!, "*.tmp").Length == 0,
-        "failed verification never installs an executable or leaves temporary files");
+    check(File.ReadAllText(binary) == "corrupt" && mismatches == 1 && Directory.GetFiles(Path.GetDirectoryName(binary)!, "*.tmp").Length == 0,
+        "failed verification does not retry, install an executable, or leave temporary files");
     check(await YouTube.EnsureDownloader(binary, hash, fetch, CancellationToken.None) == binary && downloads == 2 && File.ReadAllBytes(binary).SequenceEqual(bytes),
         "corrupt cached executable is replaced by a verified copy");
+    var transient = Path.Combine(folder, "yt-dlp", "transient-binary");
+    var attempts = 0;
+    Task<Stream> flaky(CancellationToken token)
+    {
+        if (++attempts < 3) throw new HttpRequestException("Temporary download failure");
+        return fetch(token);
+    }
+    check(await YouTube.EnsureDownloader(transient, hash, flaky, CancellationToken.None) == transient && attempts == 3 &&
+        Directory.GetFiles(Path.GetDirectoryName(transient)!, "*.tmp").Length == 0,
+        "transient installer failures retry and leave no temporary files");
     var path = Path.Combine(folder, "theme.mp3");
     File.WriteAllText(path, "plugin theme");
     var managed = new ManagedTheme { Folder = folder, Path = path, Hash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))) };

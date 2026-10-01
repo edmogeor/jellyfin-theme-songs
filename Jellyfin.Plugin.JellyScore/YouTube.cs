@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Globalization;
+using System.IO.Compression;
 
 namespace Jellyfin.Plugin.JellyScore;
 
@@ -11,17 +12,34 @@ public sealed record Video(string Id, string Title, string Description, string C
     string? Album = null, string? Track = null, string? Artist = null, int? ReleaseYear = null, DateOnly? UploadDate = null);
 public sealed record Choice(Video Video, string Recording, int Score, string Evidence);
 
-public sealed class SearchFailure(string message) : Exception(message);
+public class SearchFailure(string message) : Exception(message);
+public sealed class RateLimitFailure(string message) : SearchFailure(message);
 public sealed class DownloadFailure(string message) : IOException(message);
 public sealed class SourceUnavailable(string message) : IOException(message);
 
 public sealed class YouTube
 {
-    private readonly SemaphoreSlim _metadataGate = new(JellyScoreConstants.MetadataConcurrency);
+    private sealed class ChecksumFailure(string message) : IOException(message);
+
     private static readonly SemaphoreSlim DownloaderGate = new(1);
+    private static readonly SemaphoreSlim RuntimeGate = new(1);
+    // ponytail: one gate per Jellyfin process; coordinate across servers only if they share an egress IP.
+    private static readonly SemaphoreSlim RequestGate = new(1);
     private static readonly HttpClient DownloaderClient = new() { Timeout = TimeSpan.FromMinutes(JellyScoreConstants.DownloaderTimeoutMinutes) };
     private static string? _downloaderPath;
+    private static string? _runtime;
+    private static DateTimeOffset _nextRequest;
+    private static long _rateLimitedUntilTicks;
     public static string? DownloaderError { get; private set; }
+    public static string? RuntimeError { get; private set; }
+    public static DateTimeOffset? RateLimitedUntil
+    {
+        get
+        {
+            var ticks = Interlocked.Read(ref _rateLimitedUntilTicks);
+            return ticks > DateTimeOffset.UtcNow.UtcTicks ? new DateTimeOffset(ticks, TimeSpan.Zero) : null;
+        }
+    }
 
     // ReSharper disable once MemberCanBePrivate.Global
     public static string DownloaderName(bool windows, bool macos, Architecture architecture, bool musl = false) => (windows, macos, architecture, musl) switch
@@ -70,7 +88,91 @@ public sealed class YouTube
         finally { DownloaderGate.Release(); }
     }
 
-    public static Task<string> RetryDownloader(CancellationToken ct) => Executable(ct);
+    public static async Task RetryDownloader(CancellationToken ct)
+    {
+        SearchFailure? failure = null;
+        try { await Executable(ct); }
+        catch (SearchFailure e) { failure = e; }
+        try { await JavaScriptRuntime(ct); }
+        catch (SearchFailure e) { failure ??= e; }
+        if (failure is not null) throw failure;
+    }
+
+    // ReSharper disable once MemberCanBePrivate.Global
+    public static string? DenoAsset(bool windows, bool macos, Architecture architecture, bool musl = false) => (windows, macos, architecture, musl) switch
+    {
+        (true, _, Architecture.X64, _) => "deno-x86_64-pc-windows-msvc.zip",
+        (true, _, Architecture.Arm64, _) => "deno-aarch64-pc-windows-msvc.zip",
+        (_, true, Architecture.X64, _) => "deno-x86_64-apple-darwin.zip",
+        (_, true, Architecture.Arm64, _) => "deno-aarch64-apple-darwin.zip",
+        (_, _, Architecture.X64, false) => "deno-x86_64-unknown-linux-gnu.zip",
+        (_, _, Architecture.Arm64, false) => "deno-aarch64-unknown-linux-gnu.zip",
+        _ => null
+    };
+
+    private static async Task<string> JavaScriptRuntime(CancellationToken ct)
+    {
+        if (_runtime is not null) return _runtime;
+        await RuntimeGate.WaitAsync(ct);
+        try
+        {
+            if (_runtime is not null) return _runtime;
+            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct))
+            {
+                timeout.CancelAfter(TimeSpan.FromSeconds(JellyScoreConstants.RuntimeCheckTimeoutSeconds));
+                try
+                {
+                    if (Regex.IsMatch(await Audio.Run("deno", ["--version"], timeout.Token), @"^deno (?:[3-9]|2\.(?:[3-9]|\d{2,}))\."))
+                    { RuntimeError = null; return _runtime = "deno"; }
+                }
+                catch (Exception e) when (e is IOException or OperationCanceledException && !ct.IsCancellationRequested) { }
+            }
+            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct))
+            {
+                timeout.CancelAfter(TimeSpan.FromSeconds(JellyScoreConstants.RuntimeCheckTimeoutSeconds));
+                try
+                {
+                    if (Regex.IsMatch(await Audio.Run("node", ["--version"], timeout.Token), @"^v(?:2[2-9]|[3-9]\d)\."))
+                    { RuntimeError = null; return _runtime = "node"; }
+                }
+                catch (Exception e) when (e is IOException or OperationCanceledException && !ct.IsCancellationRequested) { }
+            }
+            var asset = DenoAsset(OperatingSystem.IsWindows(), OperatingSystem.IsMacOS(), RuntimeInformation.OSArchitecture,
+                RuntimeInformation.RuntimeIdentifier.Contains("musl", StringComparison.OrdinalIgnoreCase));
+            if (asset is null) throw new SearchFailure("A supported Deno or Node.js runtime is required on this server platform.");
+            var directory = Path.GetDirectoryName(typeof(YouTube).Assembly.Location)!;
+            var version = (await File.ReadAllTextAsync(Path.Combine(directory, JellyScoreConstants.RuntimeVersionFile), ct)).Trim();
+            var checksum = File.ReadLines(Path.Combine(directory, JellyScoreConstants.RuntimeChecksumsFile))
+                .Select(line => line.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                .FirstOrDefault(parts => parts.Length == 2 && parts[1] == asset)?[0];
+            if (checksum is null || !Regex.IsMatch(version, "^v[0-9.]+$") || !Regex.IsMatch(checksum, "^[a-fA-F0-9]{64}$"))
+                throw new SearchFailure("Plugin package has no valid Deno release or checksum for this platform.");
+            var folder = Path.Combine(Plugin.Instance.DownloaderFolder, version);
+            var archive = await EnsureDownloader(Path.Combine(folder, asset), checksum,
+                token => DownloaderClient.GetStreamAsync(new Uri($"{JellyScoreConstants.RuntimeReleaseUrl}/{version}/{asset}"), token), ct);
+            var executable = Path.Combine(folder, OperatingSystem.IsWindows() ? "deno.exe" : "deno");
+            var temporary = executable + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try
+            {
+                using var zip = ZipFile.OpenRead(archive);
+                var entry = zip.GetEntry(Path.GetFileName(executable)) ?? throw new IOException("Verified Deno archive has no executable.");
+                await using (var input = entry.Open())
+                await using (var output = File.Create(temporary)) await input.CopyToAsync(output, ct);
+                if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(temporary, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+                File.Move(temporary, executable, true);
+            }
+            finally { if (File.Exists(temporary)) File.Delete(temporary); }
+            RuntimeError = null;
+            return _runtime = "deno:" + executable;
+        }
+        catch (Exception e) when (e is IOException or HttpRequestException or UnauthorizedAccessException or SearchFailure ||
+            e is TaskCanceledException && !ct.IsCancellationRequested)
+        {
+            RuntimeError = $"Could not prepare a JavaScript runtime for yt-dlp: {e.Message}";
+            throw new SearchFailure(RuntimeError);
+        }
+        finally { RuntimeGate.Release(); }
+    }
 
     // ReSharper disable once MemberCanBePrivate.Global
     public static async Task<string> EnsureDownloader(string path, string checksum, Func<CancellationToken, Task<Stream>> download, CancellationToken ct)
@@ -82,19 +184,27 @@ public sealed class YouTube
                 return path;
         }
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        try
+        for (var attempt = 0; ; attempt++)
         {
-            await using (var input = await download(ct))
-            await using (var output = File.Create(temporary)) await input.CopyToAsync(output, ct);
-            await using (var file = File.OpenRead(temporary))
-                if (!string.Equals(Convert.ToHexString(await SHA256.HashDataAsync(file, ct)), checksum, StringComparison.OrdinalIgnoreCase))
-                    throw new IOException("Downloaded yt-dlp checksum did not match the pinned release.");
-            if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(temporary, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
-            File.Move(temporary, path, true);
-            return path;
+            var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try
+            {
+                await using (var input = await download(ct))
+                await using (var output = File.Create(temporary)) await input.CopyToAsync(output, ct);
+                await using (var file = File.OpenRead(temporary))
+                    if (!string.Equals(Convert.ToHexString(await SHA256.HashDataAsync(file, ct)), checksum, StringComparison.OrdinalIgnoreCase))
+                        throw new ChecksumFailure("Downloaded asset checksum did not match the pinned release.");
+                if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(temporary, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+                File.Move(temporary, path, true);
+                return path;
+            }
+            catch (Exception e) when (attempt < JellyScoreConstants.InstallerAttempts - 1 && !ct.IsCancellationRequested &&
+                e is IOException and not ChecksumFailure or HttpRequestException or TaskCanceledException)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(JellyScoreConstants.DownloadRetryBaseSeconds << attempt), ct);
+            }
+            finally { if (File.Exists(temporary)) File.Delete(temporary); }
         }
-        finally { if (File.Exists(temporary)) File.Delete(temporary); }
     }
 
     public async Task<IReadOnlyList<Video>> Search(Work work, CancellationToken ct, bool nextPage = false)
@@ -154,29 +264,23 @@ public sealed class YouTube
         return videos;
     }
 
-    private async Task<IReadOnlyList<Video>> Details(IEnumerable<Video> candidates, CancellationToken ct)
+    private static async Task<IReadOnlyList<Video>> Details(IEnumerable<Video> candidates, CancellationToken ct)
     {
-        var shortlist = candidates.ToArray();
-        var videos = new Video?[shortlist.Length];
-        await Parallel.ForEachAsync(Enumerable.Range(0, shortlist.Length), new ParallelOptions { MaxDegreeOfParallelism = JellyScoreConstants.DetailConcurrency, CancellationToken = ct }, async (index, token) =>
+        var videos = new List<Video>();
+        foreach (var candidate in candidates)
         {
-            try { videos[index] = await Recheck(shortlist[index].Id, token); }
+            try { videos.Add(await Recheck(candidate.Id, ct)); }
             catch (SourceUnavailable) { }
-        });
-        return videos.OfType<Video>().ToArray();
+        }
+        return videos;
     }
 
-    private async Task<Video> Recheck(string id, CancellationToken ct)
+    private static async Task<Video> Recheck(string id, CancellationToken ct)
     {
         if (!Regex.IsMatch(id, "^[a-zA-Z0-9_-]{11}$")) throw new SearchFailure("Invalid source video ID.");
-        await _metadataGate.WaitAsync(ct);
-        try
-        {
-            var output = await Tool(["--no-warnings", "--skip-download", "--dump-json", "--no-playlist", "https://www.youtube.com/watch?v=" + id], ct);
-            using var doc = JsonDocument.Parse(output);
-            return Parse(doc.RootElement);
-        }
-        finally { _metadataGate.Release(); }
+        var output = await Tool(["--no-warnings", "--skip-download", "--dump-json", "--no-playlist", "https://www.youtube.com/watch?v=" + id], ct);
+        using var doc = JsonDocument.Parse(output);
+        return Parse(doc.RootElement);
     }
 
     public static async Task Download(string id, string path, CancellationToken ct)
@@ -185,9 +289,9 @@ public sealed class YouTube
         {
             try
             {
-                await Audio.Run(await Executable(ct), ["--no-playlist", "--no-progress", "--no-part", "--no-continue", "--retries", $"{JellyScoreConstants.DownloaderRetries}",
+                await RunTool(["--no-playlist", "--no-progress", "--no-part", "--no-continue", "--retries", $"{JellyScoreConstants.DownloaderRetries}",
                     "--socket-timeout", $"{JellyScoreConstants.DownloaderSocketTimeoutSeconds}", "-f", "bestaudio", "--max-filesize", JellyScoreConstants.DownloaderMaximumFileSize,
-                    "-o", path, "https://www.youtube.com/watch?v=" + id], ct);
+                    "-o", path, "https://www.youtube.com/watch?v=" + id], true, ct);
                 return;
             }
             catch (IOException) when (attempt < JellyScoreConstants.ToolAttempts - 1)
@@ -213,11 +317,68 @@ public sealed class YouTube
 
     private static string? Text(JsonElement item, string key) => item.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
+    // ReSharper disable once MemberCanBePrivate.Global
+    public static bool IsRateLimitError(string message) =>
+        message.Contains("HTTP Error 429", StringComparison.OrdinalIgnoreCase) ||
+        message.Contains("Too Many Requests", StringComparison.OrdinalIgnoreCase) ||
+        message.Contains("Sign in to confirm you're not a bot", StringComparison.OrdinalIgnoreCase) ||
+        message.Contains("Sign in to confirm you’re not a bot", StringComparison.OrdinalIgnoreCase) ||
+        message.Contains("This content isn't available, try again later", StringComparison.OrdinalIgnoreCase);
+
+    // ReSharper disable once MemberCanBePrivate.Global
+    public static bool ValidCookies(string cookies) => cookies.Length <= JellyScoreConstants.MaximumCookiesCharacters &&
+        !cookies.Contains('\0') && (cookies.StartsWith("# Netscape HTTP Cookie File\n", StringComparison.Ordinal) ||
+            cookies.StartsWith("# HTTP Cookie File\n", StringComparison.Ordinal) ||
+            cookies.StartsWith("# Netscape HTTP Cookie File\r\n", StringComparison.Ordinal) ||
+            cookies.StartsWith("# HTTP Cookie File\r\n", StringComparison.Ordinal));
+
+    private static async Task<string> RunTool(string[] args, bool download, CancellationToken ct)
+    {
+        await RetryDownloader(ct);
+        var executable = _downloaderPath!;
+        var runtime = _runtime!;
+        await RequestGate.WaitAsync(ct);
+        string? cookiesPath = null;
+        try
+        {
+            if (RateLimitedUntil is { } until) throw new RateLimitFailure($"YouTube is rate limiting this server; requests are paused until {until:u}.");
+            var delay = _nextRequest - DateTimeOffset.UtcNow;
+            if (delay > TimeSpan.Zero) await Task.Delay(delay, ct);
+            var cookies = Plugin.Instance.Configuration.YouTubeCookies;
+            if (!string.IsNullOrEmpty(cookies))
+            {
+                if (!ValidCookies(cookies)) throw new SearchFailure("The saved YouTube cookies are invalid. Clear or replace them in settings.");
+                cookiesPath = Path.Combine(Plugin.Instance.DownloaderFolder, "youtube-cookies-" + Guid.NewGuid().ToString("N") + ".txt");
+                var options = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write };
+                if (!OperatingSystem.IsWindows()) options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+                await using (var file = new FileStream(cookiesPath, options))
+                await using (var writer = new StreamWriter(file)) await writer.WriteAsync(cookies.AsMemory(), ct);
+            }
+            var cookieArgs = cookiesPath is null ? Array.Empty<string>() : new[] { "--cookies", cookiesPath };
+            try { return await Audio.Run(executable, ["--js-runtimes", runtime, "--impersonate", "chrome", "--sleep-requests", JellyScoreConstants.InternalRequestSpacingSeconds.ToString(CultureInfo.InvariantCulture), .. cookieArgs, .. args], ct); }
+            catch (IOException e) when (IsRateLimitError(e.Message))
+            {
+                var cooldown = DateTimeOffset.UtcNow.AddMinutes(JellyScoreConstants.RateLimitCooldownMinutes);
+                Interlocked.Exchange(ref _rateLimitedUntilTicks, cooldown.UtcTicks);
+                throw new RateLimitFailure($"YouTube is rate limiting this server; requests are paused until {cooldown:u}.");
+            }
+            finally
+            {
+                _nextRequest = DateTimeOffset.UtcNow.AddSeconds(download ? JellyScoreConstants.DownloadSpacingSeconds : 0);
+            }
+        }
+        finally
+        {
+            try { if (cookiesPath is not null && File.Exists(cookiesPath)) File.Delete(cookiesPath); }
+            finally { RequestGate.Release(); }
+        }
+    }
+
     private static async Task<string> Tool(string[] args, CancellationToken ct)
     {
         for (var attempt = 0; attempt < JellyScoreConstants.ToolAttempts; attempt++)
         {
-            try { return await Audio.Run(await Executable(ct), args, ct); }
+            try { return await RunTool(args, false, ct); }
             catch (IOException e) when (e.Message.Contains("This video is not available", StringComparison.OrdinalIgnoreCase) ||
                 e.Message.Contains("Video unavailable", StringComparison.OrdinalIgnoreCase))
             { throw new SourceUnavailable(e.Message); }
