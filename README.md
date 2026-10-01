@@ -1,3 +1,7 @@
+> [!WARNING]
+> **Currently this plugin is limited:**
+> yt-dlp is limited by challenging IPs, and so downloads are being blocked. Currently looking for a solution.
+
 <div align="center">
   <img src="jellyscore.svg" width="600" alt="JellyScore" />
   <p>
