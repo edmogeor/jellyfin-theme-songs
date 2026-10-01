@@ -9,6 +9,14 @@
     "owner": "edmogeor",
     "versions": [
       {
+        "changelog": "### Improved\n\n- Show when JellyScore is downloading or verifying yt-dlp or Deno during a scan, with status text in every supported language.\n\n",
+        "checksum": "0b80c2dcecebf949f7c6dba83d387691",
+        "sourceUrl": "https://github.com/edmogeor/jellyscore/releases/download/v0.1.23.0/JellyScore.zip",
+        "targetAbi": "12.0.0.0",
+        "timestamp": "2026-10-01T17:12:03Z",
+        "version": "0.1.23.0"
+      },
+      {
         "changelog": "### Added\n\n- Optionally save YouTube cookies in the administrator settings, with guidance and labels in every supported language.\n- Use an installed JavaScript runtime or download a checksum-verified Deno release for YouTube extraction.\n\n### Improved\n\n- Pace yt-dlp requests and pause after YouTube rate-limit errors, while allowing audio conversion to overlap the next search.\n- Show each active scan item's search, download, or audio-processing stage.\n- Retry transient yt-dlp and Deno installation failures.\n\n",
         "checksum": "724bff192d318ceaf7e7a901c0de5dc3",
         "sourceUrl": "https://github.com/edmogeor/jellyscore/releases/download/v0.1.22.0/JellyScore.zip",
