@@ -36,13 +36,15 @@ JellyScore automatically downloads theme music from YouTube for your movies and 
 
 Jellyfin needs permission to write to your media folders and plugin configuration directory. Each movie needs its own folder. On first use JellyScore downloads and verifies [yt-dlp](https://github.com/yt-dlp/yt-dlp) for your server's platform from its official releases. YouTube extraction also needs a JavaScript runtime: JellyScore uses a supported Deno or Node.js installation if available, or downloads and verifies Deno on supported platforms. GitHub must be reachable for these downloads, but you do not need an API key. Later searches reuse the cached tools.
 
-You can optionally paste [YouTube cookies in Netscape `cookies.txt` format](https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies) into the administrator settings. They are saved in Jellyfin's plugin configuration and used only for yt-dlp requests. Using an account with yt-dlp may put that account at risk of suspension.
+## Limitations
+
+YouTube can rate-limit or challenge the server's guest session, account, or IP, particularly during large scans. JellyScore spaces yt-dlp requests and pauses for 30 minutes when it detects a rate-limit error. A stopped scan may need to be started again afterward. These measures cannot guarantee access, and YouTube changes may require a newer JellyScore release with an updated yt-dlp.
+
+**YouTube cookies are optional.** If YouTube requires a signed-in session, paste the contents of a [YouTube `cookies.txt` file](https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies) into the **YouTube cookies (optional)** setting; leave it empty for anonymous requests. Cookies do not remove rate limits. They are stored in Jellyfin's plugin configuration and passed to yt-dlp, so treat them as account credentials. Using an account with yt-dlp may lead to temporary or permanent suspension.
 
 ## Manage your theme music
 
 The JellyScore page shows your downloads and scan progress. You can **Refresh** a download to look for a different recording, or **Delete** it. Deleting pauses automatic downloads for that item until you run another full scan. JellyScore never deletes theme music you added yourself or files changed outside the plugin.
-
-YouTube changes can interrupt searches. If that happens, you may need to update JellyScore to get a newer download tool.
 
 ## Development
 
