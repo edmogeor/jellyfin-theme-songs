@@ -95,8 +95,6 @@ internal static class JellyScoreConstants
     internal const int ScanInitialSecondsPerItem = 20;
     internal const int ScanMaximumPriorSecondsPerItem = 3600;
     internal const int ScanBatchSize = 100;
-    // One item can convert audio while another uses the globally paced yt-dlp gate.
-    internal const int ScanConcurrency = 2;
     internal const int ScanRecentRejections = 5;
     internal const int ProgressComplete = 100;
     internal const int AdminPageSize = 25;

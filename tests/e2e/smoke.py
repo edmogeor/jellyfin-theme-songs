@@ -67,7 +67,7 @@ def scan_until(token, expected=None, expect_current=False):
         status, progress = request("GET", "/ThemeSongs/scan", token=token)
         if status == 200 and field(progress, "running") and field(progress, "currentItem"):
             active = field(progress, "activeItems")
-            assert active and all(field(item, "name") and field(item, "stage") in english_strings for item in active), (
+            assert len(active) == 1 and all(field(item, "name") and field(item, "stage") in english_strings for item in active), (
                 f"scan omitted active item stages: {progress}"
             )
             setup_stage = field(progress, "toolSetupStage")

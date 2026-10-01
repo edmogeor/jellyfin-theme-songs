@@ -143,7 +143,6 @@ public sealed class ThemeScan(ILibraryManager library, ThemeService themes, Stor
         _status = new ScanStatus { RunId = Guid.NewGuid(), StartedAt = DateTimeOffset.UtcNow, Running = true,
             PriorSecondsPerItem = prior is > 0 and < JellyScoreConstants.ScanMaximumPriorSecondsPerItem ? prior.Value : JellyScoreConstants.ScanInitialSecondsPerItem };
         var status = _status;
-        var active = new Dictionary<Guid, ScanActiveItem>();
         try
         {
             themes.ResetSuppression();
@@ -160,23 +159,19 @@ public sealed class ThemeScan(ILibraryManager library, ThemeService themes, Stor
                 query.Limit = JellyScoreConstants.ScanBatchSize;
                 var batch = library.GetItemList(query).ToArray();
                 if (batch.Length == 0) break;
-                await Parallel.ForEachAsync(batch, new ParallelOptions { MaxDegreeOfParallelism = JellyScoreConstants.ScanConcurrency, CancellationToken = ct }, async (item, token) =>
+                foreach (var item in batch)
                 {
+                    ct.ThrowIfCancellationRequested();
                     lock (status)
                     {
-                        active[item.Id] = new ScanActiveItem(item.Name, "stagePreparing");
-                        status.ActiveItems = active.Values.ToArray();
-                        status.CurrentItem = string.Join(", ", active.Values.Select(entry => entry.Name));
+                        status.ActiveItems = [new ScanActiveItem(item.Name, "stagePreparing")];
+                        status.CurrentItem = item.Name;
                     }
                     try
                     {
-                        var result = await themes.Process(item.Id, false, token, stage =>
+                        var result = await themes.Process(item.Id, false, ct, stage =>
                         {
-                            lock (status)
-                            {
-                                active[item.Id] = new ScanActiveItem(item.Name, stage);
-                                status.ActiveItems = active.Values.ToArray();
-                            }
+                            lock (status) status.ActiveItems = [new ScanActiveItem(item.Name, stage)];
                         });
                         lock (status)
                         {
@@ -192,12 +187,12 @@ public sealed class ThemeScan(ILibraryManager library, ThemeService themes, Stor
                         }
                     }
                     catch (InvalidOperationException) { lock (status) status.Unsupported++; }
-                    catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+                    catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
                     catch (RateLimitFailure e) { logger.LogWarning("Theme scan paused: {Message}", e.Message); throw; }
                     catch (Exception e) { lock (status) status.Failed++; logger.LogWarning("Theme scan failed for {ItemId}: {Message}", item.Id, e.Message); }
-                    finally { lock (status) { active.Remove(item.Id); status.ActiveItems = active.Values.ToArray(); status.CurrentItem = active.Count == 0 ? null : string.Join(", ", active.Values.Select(entry => entry.Name)); } }
+                    finally { lock (status) { status.ActiveItems = []; status.CurrentItem = null; } }
                     lock (status) { status.Processed++; status.LastCompletedAt = DateTimeOffset.UtcNow; progress.Report((double)JellyScoreConstants.ProgressComplete * status.Processed / Math.Max(1, status.Total)); }
-                });
+                }
                 if (batch.Length < JellyScoreConstants.ScanBatchSize) break;
             }
             progress.Report(JellyScoreConstants.ProgressComplete);
