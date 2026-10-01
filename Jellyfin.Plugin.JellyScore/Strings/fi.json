@@ -19,6 +19,8 @@
   "scanProgress": "Tunnusmusiikin tarkistuksen edistyminen",
   "scanItemStage": "{0}: {1}",
   "stagePreparing": "Valmistellaan",
+  "stagePreparingDownloader": "Ladataan tai tarkistetaan yt-dlp:tä",
+  "stagePreparingRuntime": "Ladataan tai tarkistetaan Denoa",
   "stageSearching": "Haetaan",
   "stageDownloading": "Ladataan",
   "stageProcessing": "Käsitellään ääntä",

@@ -19,6 +19,8 @@
   "scanProgress": "Voortgang van de themamuziekscan",
   "scanItemStage": "{0}: {1}",
   "stagePreparing": "Voorbereiden",
+  "stagePreparingDownloader": "yt-dlp downloaden of verifiëren",
+  "stagePreparingRuntime": "Deno downloaden of verifiëren",
   "stageSearching": "Zoeken",
   "stageDownloading": "Downloaden",
   "stageProcessing": "Audio verwerken",

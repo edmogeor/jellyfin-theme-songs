@@ -1,3 +1,9 @@
+## [0.1.23.0]
+
+### Improved
+
+- Show when JellyScore is downloading or verifying yt-dlp or Deno during a scan, with status text in every supported language.
+
 ## [0.1.22.0]
 
 ### Added

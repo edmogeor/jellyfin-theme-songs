@@ -28,10 +28,14 @@ public sealed class YouTube
     private static readonly HttpClient DownloaderClient = new() { Timeout = TimeSpan.FromMinutes(JellyScoreConstants.DownloaderTimeoutMinutes) };
     private static string? _downloaderPath;
     private static string? _runtime;
+    private static int _preparingDownloader;
+    private static int _preparingRuntime;
     private static DateTimeOffset _nextRequest;
     private static long _rateLimitedUntilTicks;
     public static string? DownloaderError { get; private set; }
     public static string? RuntimeError { get; private set; }
+    public static string? ToolSetupStage => Volatile.Read(ref _preparingDownloader) != 0 ? "stagePreparingDownloader" :
+        Volatile.Read(ref _preparingRuntime) != 0 ? "stagePreparingRuntime" : null;
     public static DateTimeOffset? RateLimitedUntil
     {
         get
@@ -75,6 +79,7 @@ public sealed class YouTube
                 throw new SearchFailure("Plugin package has no valid yt-dlp release or checksum for this platform.");
             var path = Path.Combine(Plugin.Instance.DownloaderFolder, version, asset);
             var url = new Uri($"{JellyScoreConstants.DownloaderReleaseUrl}/{version}/{asset}");
+            Volatile.Write(ref _preparingDownloader, 1);
             _downloaderPath = await EnsureDownloader(path, checksum, token => DownloaderClient.GetStreamAsync(url, token), ct);
             DownloaderError = null;
             return _downloaderPath;
@@ -85,7 +90,7 @@ public sealed class YouTube
             DownloaderError = $"Could not install yt-dlp for this server: {e.Message}";
             throw new SearchFailure(DownloaderError);
         }
-        finally { DownloaderGate.Release(); }
+        finally { Volatile.Write(ref _preparingDownloader, 0); DownloaderGate.Release(); }
     }
 
     public static async Task RetryDownloader(CancellationToken ct)
@@ -148,6 +153,7 @@ public sealed class YouTube
             if (checksum is null || !Regex.IsMatch(version, "^v[0-9.]+$") || !Regex.IsMatch(checksum, "^[a-fA-F0-9]{64}$"))
                 throw new SearchFailure("Plugin package has no valid Deno release or checksum for this platform.");
             var folder = Path.Combine(Plugin.Instance.DownloaderFolder, version);
+            Volatile.Write(ref _preparingRuntime, 1);
             var archive = await EnsureDownloader(Path.Combine(folder, asset), checksum,
                 token => DownloaderClient.GetStreamAsync(new Uri($"{JellyScoreConstants.RuntimeReleaseUrl}/{version}/{asset}"), token), ct);
             var executable = Path.Combine(folder, OperatingSystem.IsWindows() ? "deno.exe" : "deno");
@@ -171,7 +177,7 @@ public sealed class YouTube
             RuntimeError = $"Could not prepare a JavaScript runtime for yt-dlp: {e.Message}";
             throw new SearchFailure(RuntimeError);
         }
-        finally { RuntimeGate.Release(); }
+        finally { Volatile.Write(ref _preparingRuntime, 0); RuntimeGate.Release(); }
     }
 
     // ReSharper disable once MemberCanBePrivate.Global

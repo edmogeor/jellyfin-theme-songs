@@ -102,6 +102,8 @@ public sealed class ScanStatus
     public int Unsupported { get; set; }
     public int Failed { get; set; }
     // ReSharper disable once UnusedMember.Global
+    public string? ToolSetupStage => YouTube.ToolSetupStage;
+    // ReSharper disable once UnusedMember.Global
     public DateTimeOffset? RateLimitedUntil => YouTube.RateLimitedUntil;
     // ReSharper disable once UnusedMember.Global
     public double? RemainingSeconds

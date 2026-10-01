@@ -70,6 +70,8 @@ def scan_until(token, expected=None, expect_current=False):
             assert active and all(field(item, "name") and field(item, "stage") in english_strings for item in active), (
                 f"scan omitted active item stages: {progress}"
             )
+            setup_stage = field(progress, "toolSetupStage")
+            assert setup_stage is None or setup_stage in english_strings, f"unknown tool preparation stage: {progress}"
             assert field(progress, "startedAt").startswith("20"), f"scan start time missing: {progress}"
             if field(progress, "total") > field(progress, "processed"):
                 assert field(progress, "remainingSeconds") > 0, f"running scan has no ETA: {progress}"

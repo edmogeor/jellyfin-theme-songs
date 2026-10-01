@@ -18,7 +18,8 @@ foreach (var locale in new[] { "da", "de", "en-us", "es", "fi", "fr", "it", "ja"
     using var stream = typeof(YouTube).Assembly.GetManifestResourceStream($"Jellyfin.Plugin.JellyScore.Strings.{locale}.json")!;
     using var strings = JsonDocument.Parse(stream);
     check(new[] { "cookiesLabel", "cookiesHelp", "cookiesGuide", "invalidCookies", "runtimeInstallFailed",
-        "scanItemStage", "stagePreparing", "stageSearching", "stageDownloading", "stageProcessing" }.All(key =>
+        "scanItemStage", "stagePreparing", "stagePreparingDownloader", "stagePreparingRuntime",
+        "stageSearching", "stageDownloading", "stageProcessing" }.All(key =>
         strings.RootElement.TryGetProperty(key, out var value) && !string.IsNullOrWhiteSpace(value.GetString())) &&
         strings.RootElement.GetProperty("rateLimited").GetString()!.Contains("{0}", StringComparison.Ordinal) &&
         strings.RootElement.GetProperty("scanItemStage").GetString()!.Contains("{1}", StringComparison.Ordinal),

@@ -19,6 +19,8 @@
   "scanProgress": "Fortschritt des Titelmusik-Scans",
   "scanItemStage": "{0}: {1}",
   "stagePreparing": "Vorbereitung",
+  "stagePreparingDownloader": "yt-dlp wird heruntergeladen oder überprüft",
+  "stagePreparingRuntime": "Deno wird heruntergeladen oder überprüft",
   "stageSearching": "Suche",
   "stageDownloading": "Download",
   "stageProcessing": "Audioverarbeitung",

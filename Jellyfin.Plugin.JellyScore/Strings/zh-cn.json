@@ -19,6 +19,8 @@
   "scanProgress": "主题音乐扫描进度",
   "scanItemStage": "{0}：{1}",
   "stagePreparing": "准备中",
+  "stagePreparingDownloader": "正在下载或校验 yt-dlp",
+  "stagePreparingRuntime": "正在下载或校验 Deno",
   "stageSearching": "搜索中",
   "stageDownloading": "下载中",
   "stageProcessing": "处理音频中",

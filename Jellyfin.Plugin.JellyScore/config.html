@@ -1041,11 +1041,17 @@
         const activeItems = (data.ActiveItems || [])
           .map((item) => t("scanItemStage", item.Name, t(item.Stage)))
           .join(" · ");
+        const activity = [
+          data.ToolSetupStage && t(data.ToolSetupStage),
+          activeItems,
+        ]
+          .filter(Boolean)
+          .join(" · ");
         $("#themeProgress").textContent =
           (data.Total
             ? t("scanning", data.Processed, data.Total)
             : t("preparingScan")) +
-          (activeItems ? " · " + activeItems : "") +
+          (activity ? " · " + activity : "") +
           estimate;
         const counts = [
           ["added", data.Added],

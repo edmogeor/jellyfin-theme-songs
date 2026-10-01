@@ -19,6 +19,8 @@
   "scanProgress": "Theme scan progress",
   "scanItemStage": "{0}: {1}",
   "stagePreparing": "Preparing",
+  "stagePreparingDownloader": "Downloading or verifying yt-dlp",
+  "stagePreparingRuntime": "Downloading or verifying Deno",
   "stageSearching": "Searching",
   "stageDownloading": "Downloading",
   "stageProcessing": "Processing audio",

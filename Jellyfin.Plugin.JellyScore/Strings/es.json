@@ -19,6 +19,8 @@
   "scanProgress": "Progreso del análisis de música",
   "scanItemStage": "{0}: {1}",
   "stagePreparing": "Preparando",
+  "stagePreparingDownloader": "Descargando o verificando yt-dlp",
+  "stagePreparingRuntime": "Descargando o verificando Deno",
   "stageSearching": "Buscando",
   "stageDownloading": "Descargando",
   "stageProcessing": "Procesando audio",

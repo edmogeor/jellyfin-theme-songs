@@ -19,6 +19,8 @@
   "scanProgress": "Progresso da varredura de músicas",
   "scanItemStage": "{0}: {1}",
   "stagePreparing": "Preparando",
+  "stagePreparingDownloader": "Baixando ou verificando o yt-dlp",
+  "stagePreparingRuntime": "Baixando ou verificando o Deno",
   "stageSearching": "Buscando",
   "stageDownloading": "Baixando",
   "stageProcessing": "Processando áudio",

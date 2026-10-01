@@ -19,6 +19,8 @@
   "scanProgress": "Status for scanning af temamusik",
   "scanItemStage": "{0}: {1}",
   "stagePreparing": "Forbereder",
+  "stagePreparingDownloader": "Downloader eller verificerer yt-dlp",
+  "stagePreparingRuntime": "Downloader eller verificerer Deno",
   "stageSearching": "Søger",
   "stageDownloading": "Downloader",
   "stageProcessing": "Behandler lyd",

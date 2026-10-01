@@ -19,6 +19,8 @@
   "scanProgress": "테마 음악 스캔 진행 상황",
   "scanItemStage": "{0}: {1}",
   "stagePreparing": "준비 중",
+  "stagePreparingDownloader": "yt-dlp 다운로드 또는 검증 중",
+  "stagePreparingRuntime": "Deno 다운로드 또는 검증 중",
   "stageSearching": "검색 중",
   "stageDownloading": "다운로드 중",
   "stageProcessing": "오디오 처리 중",
