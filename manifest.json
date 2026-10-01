@@ -9,6 +9,14 @@
     "owner": "edmogeor",
     "versions": [
       {
+        "changelog": "### Added\n\n- Optionally save YouTube cookies in the administrator settings, with guidance and labels in every supported language.\n- Use an installed JavaScript runtime or download a checksum-verified Deno release for YouTube extraction.\n\n### Improved\n\n- Pace yt-dlp requests and pause after YouTube rate-limit errors, while allowing audio conversion to overlap the next search.\n- Show each active scan item's search, download, or audio-processing stage.\n- Retry transient yt-dlp and Deno installation failures.\n\n",
+        "checksum": "724bff192d318ceaf7e7a901c0de5dc3",
+        "sourceUrl": "https://github.com/edmogeor/jellyscore/releases/download/v0.1.22.0/JellyScore.zip",
+        "targetAbi": "12.0.0.0",
+        "timestamp": "2026-10-01T16:49:02Z",
+        "version": "0.1.22.0"
+      },
+      {
         "changelog": "### Added\n\n- Control new-item processing and full scans after Jellyfin media library scans separately, with both enabled by default and labels in every supported language.\n\n### Improved\n\n- Generate English admin-page fallback text from the translation dictionary at build time, keeping one source for the wording.\n\n",
         "checksum": "25d1925216903e4f2528f5943dfab098",
         "sourceUrl": "https://github.com/edmogeor/jellyscore/releases/download/v0.1.21.0/JellyScore.zip",
