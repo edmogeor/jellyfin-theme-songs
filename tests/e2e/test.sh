@@ -22,7 +22,7 @@ series() {
   folder="/media/shows/$1 ($2)"
   mkdir -p "$folder/Season 01"
   /usr/lib/jellyfin-ffmpeg/ffmpeg -loglevel error -f lavfi -i color=c=black:s=320x240:r=1 -t 1 -c:v mpeg4 -y "$folder/Season 01/S01E01 Pilot.mp4"
-  printf '<tvshow><title>%s</title><year>%s</year><lockdata>true</lockdata></tvshow>\n' "$1" "$2" > "$folder/tvshow.nfo"
+  printf '<tvshow><title>%s</title><year>%s</year><uniqueid type="tvdb">73244</uniqueid><lockdata>true</lockdata></tvshow>\n' "$1" "$2" > "$folder/tvshow.nfo"
 }
 series 'The Office (US)' 2005
 SH

@@ -28,14 +28,12 @@ public sealed class YouTube
     private static readonly HttpClient DownloaderClient = new() { Timeout = TimeSpan.FromMinutes(JellyScoreConstants.DownloaderTimeoutMinutes) };
     private static string? _downloaderPath;
     private static string? _runtime;
-    private static int _preparingDownloader;
-    private static int _preparingRuntime;
+    private static int _preparingTools;
     private static DateTimeOffset _nextRequest;
     private static long _rateLimitedUntilTicks;
     public static string? DownloaderError { get; private set; }
     public static string? RuntimeError { get; private set; }
-    public static string? ToolSetupStage => Volatile.Read(ref _preparingDownloader) != 0 ? "stagePreparingDownloader" :
-        Volatile.Read(ref _preparingRuntime) != 0 ? "stagePreparingRuntime" : null;
+    public static string? ToolSetupStage => Volatile.Read(ref _preparingTools) != 0 ? "stagePreparingTools" : null;
     public static DateTimeOffset? RateLimitedUntil
     {
         get
@@ -61,13 +59,13 @@ public sealed class YouTube
     public static bool DownloaderAvailable => File.Exists(Path.Combine(Path.GetDirectoryName(typeof(YouTube).Assembly.Location)!, JellyScoreConstants.DownloaderVersionFile)) &&
         File.Exists(Path.Combine(Path.GetDirectoryName(typeof(YouTube).Assembly.Location)!, JellyScoreConstants.DownloaderChecksumsFile));
 
-    private static async Task<string> Executable(CancellationToken ct)
+    private static async Task Executable(CancellationToken ct)
     {
-        if (_downloaderPath is not null) return _downloaderPath;
+        if (_downloaderPath is not null) return;
         await DownloaderGate.WaitAsync(ct);
         try
         {
-            if (_downloaderPath is not null) return _downloaderPath;
+            if (_downloaderPath is not null) return;
             var directory = Path.GetDirectoryName(typeof(YouTube).Assembly.Location)!;
             var version = (await File.ReadAllTextAsync(Path.Combine(directory, JellyScoreConstants.DownloaderVersionFile), ct)).Trim();
             var asset = DownloaderName(OperatingSystem.IsWindows(), OperatingSystem.IsMacOS(), RuntimeInformation.OSArchitecture,
@@ -79,10 +77,8 @@ public sealed class YouTube
                 throw new SearchFailure("Plugin package has no valid yt-dlp release or checksum for this platform.");
             var path = Path.Combine(Plugin.Instance.DownloaderFolder, version, asset);
             var url = new Uri($"{JellyScoreConstants.DownloaderReleaseUrl}/{version}/{asset}");
-            Volatile.Write(ref _preparingDownloader, 1);
             _downloaderPath = await EnsureDownloader(path, checksum, token => DownloaderClient.GetStreamAsync(url, token), ct);
             DownloaderError = null;
-            return _downloaderPath;
         }
         catch (Exception e) when (e is IOException or HttpRequestException or SearchFailure or UnauthorizedAccessException or PlatformNotSupportedException ||
             e is TaskCanceledException && !ct.IsCancellationRequested)
@@ -90,17 +86,23 @@ public sealed class YouTube
             DownloaderError = $"Could not install yt-dlp for this server: {e.Message}";
             throw new SearchFailure(DownloaderError);
         }
-        finally { Volatile.Write(ref _preparingDownloader, 0); DownloaderGate.Release(); }
+        finally { DownloaderGate.Release(); }
     }
 
     public static async Task RetryDownloader(CancellationToken ct)
     {
-        SearchFailure? failure = null;
-        try { await Executable(ct); }
-        catch (SearchFailure e) { failure = e; }
-        try { await JavaScriptRuntime(ct); }
-        catch (SearchFailure e) { failure ??= e; }
-        if (failure is not null) throw failure;
+        var preparing = _downloaderPath is null || _runtime is null;
+        if (preparing) Interlocked.Increment(ref _preparingTools);
+        try
+        {
+            SearchFailure? failure = null;
+            try { await Executable(ct); }
+            catch (SearchFailure e) { failure = e; }
+            try { await JavaScriptRuntime(ct); }
+            catch (SearchFailure e) { failure ??= e; }
+            if (failure is not null) throw failure;
+        }
+        finally { if (preparing) Interlocked.Decrement(ref _preparingTools); }
     }
 
     // ReSharper disable once MemberCanBePrivate.Global
@@ -115,30 +117,27 @@ public sealed class YouTube
         _ => null
     };
 
-    private static async Task<string> JavaScriptRuntime(CancellationToken ct)
+    private static async Task JavaScriptRuntime(CancellationToken ct)
     {
-        if (_runtime is not null) return _runtime;
+        if (_runtime is not null) return;
         await RuntimeGate.WaitAsync(ct);
         try
         {
-            if (_runtime is not null) return _runtime;
-            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct))
+            if (_runtime is not null) return;
+            foreach (var (runtime, versionPattern) in new[]
             {
+                ("deno", @"^deno (?:[3-9]|2\.(?:[3-9]|\d{2,}))\."),
+                ("node", @"^v(?:2[2-9]|[3-9]\d)\.")
+            })
+            {
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 timeout.CancelAfter(TimeSpan.FromSeconds(JellyScoreConstants.RuntimeCheckTimeoutSeconds));
                 try
                 {
-                    if (Regex.IsMatch(await Audio.Run("deno", ["--version"], timeout.Token), @"^deno (?:[3-9]|2\.(?:[3-9]|\d{2,}))\."))
-                    { RuntimeError = null; return _runtime = "deno"; }
-                }
-                catch (Exception e) when (e is IOException or OperationCanceledException && !ct.IsCancellationRequested) { }
-            }
-            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct))
-            {
-                timeout.CancelAfter(TimeSpan.FromSeconds(JellyScoreConstants.RuntimeCheckTimeoutSeconds));
-                try
-                {
-                    if (Regex.IsMatch(await Audio.Run("node", ["--version"], timeout.Token), @"^v(?:2[2-9]|[3-9]\d)\."))
-                    { RuntimeError = null; return _runtime = "node"; }
+                    if (!Regex.IsMatch(await Audio.Run(runtime, ["--version"], timeout.Token), versionPattern)) continue;
+                    RuntimeError = null;
+                    _runtime = runtime;
+                    return;
                 }
                 catch (Exception e) when (e is IOException or OperationCanceledException && !ct.IsCancellationRequested) { }
             }
@@ -153,7 +152,6 @@ public sealed class YouTube
             if (checksum is null || !Regex.IsMatch(version, "^v[0-9.]+$") || !Regex.IsMatch(checksum, "^[a-fA-F0-9]{64}$"))
                 throw new SearchFailure("Plugin package has no valid Deno release or checksum for this platform.");
             var folder = Path.Combine(Plugin.Instance.DownloaderFolder, version);
-            Volatile.Write(ref _preparingRuntime, 1);
             var archive = await EnsureDownloader(Path.Combine(folder, asset), checksum,
                 token => DownloaderClient.GetStreamAsync(new Uri($"{JellyScoreConstants.RuntimeReleaseUrl}/{version}/{asset}"), token), ct);
             var executable = Path.Combine(folder, OperatingSystem.IsWindows() ? "deno.exe" : "deno");
@@ -169,7 +167,7 @@ public sealed class YouTube
             }
             finally { if (File.Exists(temporary)) File.Delete(temporary); }
             RuntimeError = null;
-            return _runtime = "deno:" + executable;
+            _runtime = "deno:" + executable;
         }
         catch (Exception e) when (e is IOException or HttpRequestException or UnauthorizedAccessException or SearchFailure ||
             e is TaskCanceledException && !ct.IsCancellationRequested)
@@ -177,7 +175,7 @@ public sealed class YouTube
             RuntimeError = $"Could not prepare a JavaScript runtime for yt-dlp: {e.Message}";
             throw new SearchFailure(RuntimeError);
         }
-        finally { Volatile.Write(ref _preparingRuntime, 0); RuntimeGate.Release(); }
+        finally { RuntimeGate.Release(); }
     }
 
     // ReSharper disable once MemberCanBePrivate.Global

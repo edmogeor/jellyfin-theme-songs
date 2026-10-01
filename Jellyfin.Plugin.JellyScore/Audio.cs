@@ -50,17 +50,26 @@ public static class Audio
     public static string Filter(double gain, double duration) =>
         $"volume={gain.ToString("R", CultureInfo.InvariantCulture)}dB,afade=t=in:d={JellyScoreConstants.FadeSeconds},afade=t=out:st={Math.Max(0, duration - JellyScoreConstants.FadeSeconds).ToString("R", CultureInfo.InvariantCulture)}:d={JellyScoreConstants.FadeSeconds}";
 
-    public static async Task Convert(Choice choice, string destination, IMediaEncoder encoder, int targetLufs, CancellationToken ct, Action? onDownloaded = null)
+    public static Task Convert(Choice choice, string destination, IMediaEncoder encoder, int targetLufs, CancellationToken ct, Action? onDownloaded = null) =>
+        ConvertSource(destination, encoder, targetLufs, choice.Video.Seconds, (raw, token) => YouTube.Download(choice.Video.Id, raw, token), ct, onDownloaded);
+
+    public static Task ConvertUrl(Uri url, string destination, IMediaEncoder encoder, int targetLufs, CancellationToken ct, Action? onDownloaded = null) =>
+        ConvertSource(destination, encoder, targetLufs, null, (raw, token) => TvThemeSource.Download(url, raw, token), ct, onDownloaded);
+
+    private static async Task ConvertSource(string destination, IMediaEncoder encoder, int targetLufs, int? expectedSeconds,
+        Func<string, CancellationToken, Task> download, CancellationToken ct, Action? onDownloaded)
     {
         var raw = destination + ".source";
         try
         {
-            await YouTube.Download(choice.Video.Id, raw, ct);
+            await download(raw, ct);
             if (!File.Exists(raw) || new FileInfo(raw).Length is 0 or > JellyScoreConstants.RawAudioMaximumBytes) throw new DownloadFailure("Downloaded audio is missing or too large.");
             onDownloaded?.Invoke();
             using var source = JsonDocument.Parse(await Run(encoder.ProbePath, ["-v", "error", "-show_entries", "format=duration", "-of", "json", raw], ct));
             if (!double.TryParse(source.RootElement.GetProperty("format").GetProperty("duration").GetString(), CultureInfo.InvariantCulture, out var sourceDuration) ||
-                !double.IsFinite(sourceDuration) || sourceDuration < 1) throw new IOException("Downloaded audio has no valid duration.");
+                !double.IsFinite(sourceDuration) || sourceDuration < 1 || expectedSeconds is null &&
+                    sourceDuration is < JellyScoreConstants.MinimumThemeSeconds or > JellyScoreConstants.MaximumThemeSeconds)
+                throw new IOException("Downloaded audio has no valid duration.");
             // Measure integrated loudness and true peak, then apply only a fixed gain to preserve dynamics.
             var (loudness, peak) = Stats(await Run(encoder.EncoderPath, ["-hide_banner", "-nostats", "-i", raw, "-af",
                 "ebur128=peak=true:framelog=verbose", "-f", "null", "-"], ct));
@@ -70,7 +79,7 @@ public static class Audio
             using var info = JsonDocument.Parse(probe);
             if (info.RootElement.GetProperty("streams").GetArrayLength() == 0 ||
                 !double.TryParse(info.RootElement.GetProperty("format").GetProperty("duration").GetString(), CultureInfo.InvariantCulture, out var duration) ||
-                duration < 1 || duration > choice.Video.Seconds + JellyScoreConstants.DurationToleranceSeconds) throw new IOException("Converted audio could not be validated.");
+                duration < 1 || duration > (expectedSeconds ?? sourceDuration) + JellyScoreConstants.DurationToleranceSeconds) throw new IOException("Converted audio could not be validated.");
         }
         finally { if (File.Exists(raw)) File.Delete(raw); }
     }

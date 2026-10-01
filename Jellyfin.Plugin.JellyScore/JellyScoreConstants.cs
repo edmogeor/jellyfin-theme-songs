@@ -69,6 +69,9 @@ internal static class JellyScoreConstants
     internal const int DownloaderSocketTimeoutSeconds = 20;
     internal const int DownloaderTimeoutMinutes = 2;
     internal const int RuntimeCheckTimeoutSeconds = 5;
+    internal const int ThemeSourceConnectTimeoutSeconds = 3;
+    internal const int ThemeSourceTimeoutSeconds = 10;
+    internal const int MaximumThemeUrlLength = 2048;
     internal const int MaximumCookiesCharacters = 1_000_000;
     internal const int DownloadRetryBaseSeconds = 2;
     internal const double InternalRequestSpacingSeconds = 0.75;

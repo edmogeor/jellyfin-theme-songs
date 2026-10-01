@@ -51,6 +51,7 @@
     }
     #themeSongsPage .themeStrengthOption .inputLabel,
     #themeSongsPage .themeVolumeOption .inputLabel,
+    #themeSongsPage .themeTvSourceOption .inputLabel,
     #themeSongsPage .themeCookieOption .inputLabel {
       display: block;
       margin-bottom: 0.375rem;
@@ -71,6 +72,10 @@
       box-sizing: border-box;
       width: 100%;
       resize: vertical;
+    }
+    #themeSongsPage #themeTvSource {
+      box-sizing: border-box;
+      width: 100%;
     }
     #themeSongsPage #themeCookiesHelp a {
       color: var(--jf-palette-primary-main);
@@ -510,6 +515,31 @@
           >
         </div>
       </div>
+      <div class="inputContainer themeTvSourceOption">
+        <label
+          for="themeTvSource"
+          class="inputLabel"
+          data-i18n="tvThemeSourceLabel"
+          >{{tvThemeSourceLabel}}</label
+        >
+        <input
+          id="themeTvSource"
+          name="tvThemeUrlTemplate"
+          type="text"
+          is="emby-input"
+          inputmode="url"
+          autocomplete="off"
+          placeholder="https://example.com/{tvdbId}.mp3"
+          aria-describedby="themeTvSourceHelp"
+        />
+        <div
+          id="themeTvSourceHelp"
+          class="fieldDescription"
+          data-i18n="tvThemeSourceHelp"
+        >
+          {{tvThemeSourceHelp}}
+        </div>
+      </div>
       <button
         is="emby-button"
         type="submit"
@@ -684,6 +714,7 @@
           $("#themeSettings").elements.minimumMatchStrength.value,
           $("#themeSettings").elements.targetLufs.value,
           $("#themeSettings").elements.youTubeCookies.value,
+          $("#themeSettings").elements.tvThemeUrlTemplate.value,
           [
             ...$("#themeSettings").querySelectorAll(
               "input[name=library]:checked",
@@ -831,6 +862,7 @@
         form.elements.minimumMatchStrength.value = data.MinimumMatchStrength;
         form.elements.targetLufs.value = data.TargetLufs;
         form.elements.youTubeCookies.value = data.YouTubeCookies || "";
+        form.elements.tvThemeUrlTemplate.value = data.TvThemeUrlTemplate || "";
         $("#themeLibraries").replaceChildren(
           ...data.LibrariesAvailable.map((lib) => {
             const label = document.createElement("label");
@@ -1122,6 +1154,7 @@
       $("#themeStrength").addEventListener("input", updateSave);
       $("#themeVolume").addEventListener("input", updateSave);
       $("#themeCookies").addEventListener("input", updateSave);
+      $("#themeTvSource").addEventListener("input", updateSave);
       $("#themeSettings").onsubmit = async (event) => {
         event.preventDefault();
         const form = event.currentTarget;
@@ -1132,6 +1165,9 @@
           form.elements.minimumMatchStrength.valueAsNumber;
         const targetLufs = form.elements.targetLufs.valueAsNumber;
         const youTubeCookies = form.elements.youTubeCookies.value;
+        const tvThemeUrlTemplate =
+          form.elements.tvThemeUrlTemplate.value.trim();
+        form.elements.tvThemeUrlTemplate.value = tvThemeUrlTemplate;
         const libraries = [
           ...form.querySelectorAll("input[name=library]:checked"),
         ].map((x) => x.value);
@@ -1147,6 +1183,7 @@
               minimumMatchStrength,
               targetLufs,
               youTubeCookies,
+              tvThemeUrlTemplate,
             }),
           });
           savedSettings = submitted;

@@ -1,3 +1,13 @@
+## [0.1.24.0]
+
+### Added
+
+- Let administrators set an optional TV theme URL template keyed by TVDB ID. Try it first for series, then use YouTube if the source is unavailable or its audio is invalid. Movies continue using YouTube.
+
+### Improved
+
+- Show one continuous tool-preparation status while yt-dlp and the JavaScript runtime are being set up.
+
 ## [0.1.23.0]
 
 ### Improved

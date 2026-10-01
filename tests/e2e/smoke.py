@@ -142,6 +142,7 @@ assert field(settings, "minimumMatchStrength") == 50, "admin settings expose the
 assert field(settings, "targetLufs") == -26, "admin settings expose the effective loudness target"
 assert field(settings, "scanOnLibraryRefresh") is True, "admin settings expose the default scan trigger"
 assert field(settings, "youTubeCookies") is None, "cookies are optional by default"
+assert field(settings, "tvThemeUrlTemplate") is None, "TV theme URL is optional by default"
 status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": [], "minimumMatchStrength": -1}, token)
 assert status == 400, f"negative match strength must be rejected: {status}"
 status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": [], "minimumMatchStrength": 101}, token)
@@ -151,6 +152,9 @@ for target in (-71, -4):
     assert status == 400, f"unsupported loudness target {target} must be rejected: {status}"
 status, error = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": [], "youTubeCookies": "not a cookie file"}, token)
 assert status == 400 and field(error, "code") == "invalidCookies", f"invalid cookie file must be rejected: {status} {error}"
+for template in ("http://example.com/{tvdbId}.mp3", "https://127.0.0.1/{tvdbId}.mp3", "https://example.com/theme.mp3"):
+    status, error = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": [], "tvThemeUrlTemplate": template}, token)
+    assert status == 400 and field(error, "code") == "invalidTvThemeUrl", f"invalid TV theme URL must be rejected: {status} {error}"
 status, strings = request("GET", "/ThemeSongs/strings/en-us", token=token)
 assert status == 200 and strings["scanLibraries"] == "Scan libraries", f"English translations: {status} {strings}"
 assert strings["automatic"] == "Automatically process new items" and strings["scanOnLibraryRefresh"] == "Scan after Jellyfin scans the media library"
@@ -182,10 +186,15 @@ status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries
 assert status == 204, f"save optional cookies: {status}"
 status, settings = request("GET", "/ThemeSongs/settings", token=token)
 assert status == 200 and field(settings, "youTubeCookies") == cookies, "saved cookies remain editable by the admin"
+tv_template = "https://example.com/themes/{tvdbId}.mp3"
+status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": selected, "tvThemeUrlTemplate": tv_template}, token)
+assert status == 204, f"save optional TV theme URL: {status}"
+status, settings = request("GET", "/ThemeSongs/settings", token=token)
+assert status == 200 and field(settings, "tvThemeUrlTemplate") == tv_template, "TV theme URL is saved"
 status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "scanOnLibraryRefresh": False, "libraries": selected}, token)
 assert status == 204, f"disable library-refresh scanning: {status}"
 assert_settings(token, True, selected, 75, -30, False)
-status, _ = request("POST", f"/Plugins/{PLUGIN}/Configuration", {"Enabled": True, "ScanOnLibraryRefresh": False, "Libraries": selected, "MinimumMatchStrength": None, "TargetLufs": None, "YouTubeCookies": cookies}, token)
+status, _ = request("POST", f"/Plugins/{PLUGIN}/Configuration", {"Enabled": True, "ScanOnLibraryRefresh": False, "Libraries": selected, "MinimumMatchStrength": None, "TargetLufs": None, "YouTubeCookies": cookies, "TvThemeUrlTemplate": tv_template}, token)
 assert status == 204, f"simulate an existing config with an unset match strength: {status}"
 subprocess.run(["docker", "compose", "-f", "tests/e2e/compose.yaml", "restart", "jellyfin"], check=True)
 for _ in range(60):
@@ -197,10 +206,15 @@ assert status == 200, f"plugin did not restart: {status}"
 assert_settings(token, True, selected, scan_on_library_refresh=False)
 status, settings = request("GET", "/ThemeSongs/settings", token=token)
 assert status == 200 and field(settings, "youTubeCookies") == cookies, "saved cookies survive a Jellyfin restart"
+assert field(settings, "tvThemeUrlTemplate") == tv_template, "TV theme URL survives a Jellyfin restart"
 status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": selected, "youTubeCookies": ""}, token)
 assert status == 204, f"clear optional cookies: {status}"
 status, settings = request("GET", "/ThemeSongs/settings", token=token)
 assert status == 200 and field(settings, "youTubeCookies") is None, "clearing the field removes saved cookies"
+status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": selected, "tvThemeUrlTemplate": ""}, token)
+assert status == 204, f"clear TV theme URL: {status}"
+status, settings = request("GET", "/ThemeSongs/settings", token=token)
+assert status == 200 and field(settings, "tvThemeUrlTemplate") is None, "clearing the field removes TV theme URL"
 status, before = request("GET", "/ThemeSongs/scan", token=token)
 assert status == 200, f"read scan status: {status}"
 status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": []}, token)
@@ -299,6 +313,11 @@ status, _ = request("POST", "/Library/VirtualFolders/LibraryOptions", {"Id": fil
 assert status == 204, f"enable TMDb metadata provider for film fixture: {status}"
 status, _ = request("POST", "/ThemeSongs/settings", {"enabled": False, "scanOnLibraryRefresh": True, "libraries": library_ids}, token)
 assert status == 204, f"re-enable library-refresh scanning after fixture indexing: {status}"
+source_template = os.environ.get("TV_THEME_URL_TEMPLATE")
+if source_template:
+    status, _ = request("POST", "/ThemeSongs/settings", {"enabled": False, "scanOnLibraryRefresh": True, "libraries": library_ids,
+                                                 "tvThemeUrlTemplate": source_template}, token)
+    assert status == 204, f"enable test TV theme source: {status}"
 movie = next(item for item in items["Items"] if "Sorcerer" in item["Name"])
 user_theme = next(item for item in items["Items"] if item["Name"] == "User Theme")
 first_scan = scan_until(token, "added", expect_current=True)
@@ -319,6 +338,11 @@ if theme is None and field(first_scan, "failed"):
     status, downloads = request("GET", "/ThemeSongs/downloads", token=token)
     theme = next((item for item in field(downloads, "items") if uuid.UUID(field(item, "itemId")) == uuid.UUID(movie["Id"])), None)
 assert theme is not None, f"test movie theme not downloaded: {downloads}"
+if source_template:
+    series_theme = next((item for item in field(downloads, "items") if field(item, "kind") == "Series"), None)
+    assert series_theme is not None and field(series_theme, "source") == source_template.replace("{tvdbId}", "73244"), (
+        f"TV theme URL was not selected before YouTube: {downloads}"
+    )
 assert field(theme, "source").startswith("https://www.youtube.com/watch?v="), theme
 assert field(theme, "score") > 0, theme
 assert field(theme, "status") == "Active", theme

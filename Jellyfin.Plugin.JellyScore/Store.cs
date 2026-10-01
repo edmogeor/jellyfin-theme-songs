@@ -14,6 +14,7 @@ public sealed class ManagedTheme
     public string Path { get; init; } = "";
     public string Folder { get; init; } = "";
     public string VideoId { get; init; } = "";
+    public string? SourceUrl { get; init; }
     public string Recording { get; init; } = "";
     public string VideoTitle { get; init; } = "";
     public string Hash { get; init; } = "";

@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
+using System.Net.Sockets;
+using System.Text.Json;
 using MediaBrowser.Controller.BaseItemManager;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
@@ -193,6 +195,58 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
                     recordings.Add(existing.Recording);
                 });
             }
+            var path = Path.Combine(folder, JellyScoreConstants.ThemeFile);
+            async Task<ThemeResult> Install(string temporary, Choice source, string? sourceUrl = null)
+            {
+                ct.ThrowIfCancellationRequested();
+                if (OtherTheme(item, folder, existing?.Path)) throw new IOException("Another theme appeared. The file was left untouched.");
+                if (existing is not null)
+                {
+                    if (!Owned(existing, item, folder)) throw new IOException("Theme changed during download. The file was left untouched.");
+                    File.Move(temporary, path, true);
+                }
+                else File.Move(temporary, path);
+                await using var stream = File.OpenRead(path);
+                // Complete ownership recording after the file is in place, even if cancellation arrives.
+                var hash = Convert.ToHexString(await SHA256.HashDataAsync(stream, CancellationToken.None));
+                var result = replacement ? "Replaced" : "Added";
+                store.Change(s =>
+                {
+                    s.Themes[id] = new ManagedTheme { ItemId = id, Folder = folder, Path = path, LibraryId = libraryId, Library = libraryName,
+                        Kind = item is Movie ? "Movie" : "Series", Name = item.Name, Year = item.ProductionYear,
+                        VideoId = source.Video.Id, VideoTitle = source.Video.Title, Recording = source.Recording, SourceUrl = sourceUrl,
+                        Hash = hash, Score = source.Score, Evidence = source.Evidence, Date = DateTimeOffset.UtcNow };
+                    s.Outcomes[id] = result;
+                });
+                Refresh(item);
+                return new(result);
+            }
+            if (!replacement && item is Series && Plugin.Instance.Configuration.TvThemeUrlTemplate is { } template &&
+                item.TryGetProviderId(MetadataProvider.Tvdb, out var tvdbId) && TvThemeSource.Url(template, tvdbId) is { } url)
+            {
+                var temporary = Path.Combine(folder, ".theme-" + Guid.NewGuid().ToString("N") + ".mp3");
+                try
+                {
+                    var converted = false;
+                    reportStage?.Invoke("stageDownloading");
+                    try
+                    {
+                        await Audio.ConvertUrl(url, temporary, encoder, Plugin.Instance.Configuration.EffectiveTargetLufs, ct,
+                            reportStage is null ? null : () => reportStage("stageProcessing"));
+                        converted = true;
+                    }
+                    catch (Exception e) when (!ct.IsCancellationRequested && e is IOException or HttpRequestException or SocketException or JsonException or OperationCanceledException or KeyNotFoundException or InvalidOperationException)
+                    { logger.LogWarning(e, "Configured TV theme source failed for {ItemId}; trying YouTube", id); }
+                    if (converted)
+                    {
+                        var sourceId = "tvdb:" + tvdbId;
+                        var direct = new Choice(new Video(sourceId, item.Name + " (TV theme)", "", "", null), sourceId, 100,
+                            "Configured TV theme source for TVDB ID " + tvdbId);
+                        return await Install(temporary, direct, url.AbsoluteUri);
+                    }
+                }
+                finally { if (File.Exists(temporary)) File.Delete(temporary); }
+            }
             async Task<(Work Work, Choice? Choice, bool Checked)> Select(Work currentWork, IReadOnlyList<Video> candidates, bool checkedEdition)
             {
                 var selected = Matcher.Select(currentWork, candidates, excludedIds, excludedRecordings, minimumMatchStrength);
@@ -225,7 +279,6 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
                 store.Change(s => s.Outcomes[id] = excluded ? result : result + ": " + reason);
                 return new(result, reasonCode);
             }
-            var path = Path.Combine(folder, JellyScoreConstants.ThemeFile);
             for (var sourceAttempt = 0; sourceAttempt < JellyScoreConstants.SourceAttempts; sourceAttempt++)
             {
                 var temporary = Path.Combine(folder, ".theme-" + Guid.NewGuid().ToString("N") + ".mp3");
@@ -241,28 +294,7 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
                         if (choice is null) throw;
                         continue;
                     }
-                    ct.ThrowIfCancellationRequested();
-                    if (OtherTheme(item, folder, existing?.Path)) throw new IOException("Another theme appeared. The file was left untouched.");
-                    if (existing is not null)
-                    {
-                        if (!Owned(existing, item, folder)) throw new IOException("Theme changed during download. The file was left untouched.");
-                        File.Move(temporary, path, true);
-                    }
-                    else File.Move(temporary, path);
-                    await using var stream = File.OpenRead(path);
-                    // Complete ownership recording after the file is in place, even if cancellation arrives.
-                    var hash = Convert.ToHexString(await SHA256.HashDataAsync(stream, CancellationToken.None));
-                    var result = replacement ? "Replaced" : "Added";
-                    store.Change(s =>
-                    {
-                        s.Themes[id] = new ManagedTheme { ItemId = id, Folder = folder, Path = path, LibraryId = libraryId, Library = libraryName,
-                            Kind = item is Movie ? "Movie" : "Series", Name = item.Name, Year = item.ProductionYear,
-                            VideoId = choice.Video.Id, VideoTitle = choice.Video.Title, Recording = choice.Recording,
-                            Hash = hash, Score = choice.Score, Evidence = choice.Evidence, Date = DateTimeOffset.UtcNow };
-                        s.Outcomes[id] = result;
-                    });
-                    Refresh(item);
-                    return new(result);
+                    return await Install(temporary, choice);
                 }
                 finally { if (File.Exists(temporary)) File.Delete(temporary); }
             }

@@ -41,6 +41,7 @@ public sealed class Settings : BasePluginConfiguration
     public int? MinimumMatchStrength { get; set; } = JellyScoreConstants.DefaultMatchStrength;
     public int? TargetLufs { get; set; } = JellyScoreConstants.DefaultTargetLufs;
     public string? YouTubeCookies { get; set; }
+    public string? TvThemeUrlTemplate { get; set; }
 
     public int EffectiveMinimumMatchStrength => Math.Clamp(MinimumMatchStrength ?? JellyScoreConstants.DefaultMatchStrength,
         JellyScoreConstants.MinimumMatchStrength, JellyScoreConstants.MaximumMatchStrength);

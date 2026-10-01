@@ -40,6 +40,8 @@ Jellyfin needs permission to write to your media folders and plugin configuratio
 
 YouTube can rate-limit or challenge the server's guest session, account, or IP, particularly during large scans. JellyScore spaces yt-dlp requests and pauses for 30 minutes when it detects a rate-limit error. A stopped scan may need to be started again afterward. These measures cannot guarantee access, and YouTube changes may require a newer JellyScore release with an updated yt-dlp.
 
+For TV series, administrators can optionally enter a **TV theme URL template**, such as `https://example.com/{tvdbId}.mp3`. JellyScore tries it first when the series has a TVDB ID, validates the audio, and falls back to YouTube if the source fails. There is no preconfigured URL. Movies still use YouTube.
+
 **YouTube cookies are optional.** If YouTube requires a signed-in session, paste the contents of a [YouTube `cookies.txt` file](https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies) into the **YouTube cookies (optional)** setting; leave it empty for anonymous requests. Cookies do not remove rate limits. They are stored in Jellyfin's plugin configuration and passed to yt-dlp, so treat them as account credentials. Using an account with yt-dlp may lead to temporary or permanent suspension.
 
 ## Manage your theme music

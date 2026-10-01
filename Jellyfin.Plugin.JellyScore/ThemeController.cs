@@ -16,6 +16,7 @@ public sealed class ThemeController(ThemeService themes, ThemeScan scan, ITaskMa
         MinimumMatchStrength = Plugin.Instance.Configuration.EffectiveMinimumMatchStrength,
         TargetLufs = Plugin.Instance.Configuration.EffectiveTargetLufs,
         Plugin.Instance.Configuration.YouTubeCookies,
+        Plugin.Instance.Configuration.TvThemeUrlTemplate,
         YouTube.DownloaderAvailable, YouTube.DownloaderError, YouTube.RuntimeError,
         LibrariesAvailable = library.GetVirtualFolders().Select(f => new { f.Name, f.ItemId }) };
 
@@ -33,7 +34,7 @@ public sealed class ThemeController(ThemeService themes, ThemeScan scan, ITaskMa
         return stream is null ? NotFound() : File(stream, "application/json");
     }
 
-    public sealed record SettingsRequest(bool Enabled, Guid[]? Libraries, int? MinimumMatchStrength, int? TargetLufs, bool? ScanOnLibraryRefresh, string? YouTubeCookies);
+    public sealed record SettingsRequest(bool Enabled, Guid[]? Libraries, int? MinimumMatchStrength, int? TargetLufs, bool? ScanOnLibraryRefresh, string? YouTubeCookies, string? TvThemeUrlTemplate);
 
     [HttpPost("settings")]
     public IActionResult Save([FromBody] SettingsRequest request)
@@ -42,6 +43,9 @@ public sealed class ThemeController(ThemeService themes, ThemeScan scan, ITaskMa
         if (request.TargetLufs is < JellyScoreConstants.MinimumTargetLufs or > JellyScoreConstants.MaximumTargetLufs) return BadRequest();
         if (request.YouTubeCookies is { Length: > 0 } cookies && !YouTube.ValidCookies(cookies))
             return BadRequest(new { Code = "invalidCookies" });
+        var tvThemeUrlTemplate = request.TvThemeUrlTemplate?.Trim();
+        if (!string.IsNullOrEmpty(tvThemeUrlTemplate) && !TvThemeSource.ValidTemplate(tvThemeUrlTemplate))
+            return BadRequest(new { Code = "invalidTvThemeUrl" });
         var config = Plugin.Instance.Configuration;
         config.Enabled = request.Enabled;
         if (request.ScanOnLibraryRefresh is { } scanOnLibraryRefresh) config.ScanOnLibraryRefresh = scanOnLibraryRefresh;
@@ -49,6 +53,7 @@ public sealed class ThemeController(ThemeService themes, ThemeScan scan, ITaskMa
         if (request.MinimumMatchStrength is { } minimumMatchStrength) config.MinimumMatchStrength = minimumMatchStrength;
         if (request.TargetLufs is { } targetLufs) config.TargetLufs = targetLufs;
         if (request.YouTubeCookies is not null) config.YouTubeCookies = request.YouTubeCookies.Length == 0 ? null : request.YouTubeCookies;
+        if (tvThemeUrlTemplate is not null) config.TvThemeUrlTemplate = tvThemeUrlTemplate.Length == 0 ? null : tvThemeUrlTemplate;
         Plugin.Instance.UpdateConfiguration(config);
         return NoContent();
     }
@@ -62,7 +67,7 @@ public sealed class ThemeController(ThemeService themes, ThemeScan scan, ITaskMa
         return new { Total = rows.Length, AllTotal = all.Count, Items = rows.Skip((Math.Max(1, page) - 1) * JellyScoreConstants.AdminPageSize)
             .Take(JellyScoreConstants.AdminPageSize).Select(r => new {
             r.ItemId, r.Name, r.Kind, r.Year, r.Library, r.Path, r.VideoTitle, r.Score, r.Evidence, r.Date,
-            Source = "https://www.youtube.com/watch?v=" + r.VideoId,
+            Source = r.SourceUrl ?? "https://www.youtube.com/watch?v=" + r.VideoId,
             Status = ThemeService.Status(r) }) };
     }
 

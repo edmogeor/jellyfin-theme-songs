@@ -18,7 +18,8 @@ foreach (var locale in new[] { "da", "de", "en-us", "es", "fi", "fr", "it", "ja"
     using var stream = typeof(YouTube).Assembly.GetManifestResourceStream($"Jellyfin.Plugin.JellyScore.Strings.{locale}.json")!;
     using var strings = JsonDocument.Parse(stream);
     check(new[] { "cookiesLabel", "cookiesHelp", "cookiesGuide", "invalidCookies", "runtimeInstallFailed",
-        "scanItemStage", "stagePreparing", "stagePreparingDownloader", "stagePreparingRuntime",
+        "tvThemeSourceLabel", "tvThemeSourceHelp", "invalidTvThemeUrl",
+        "scanItemStage", "stagePreparing", "stagePreparingTools",
         "stageSearching", "stageDownloading", "stageProcessing" }.All(key =>
         strings.RootElement.TryGetProperty(key, out var value) && !string.IsNullOrWhiteSpace(value.GetString())) &&
         strings.RootElement.GetProperty("rateLimited").GetString()!.Contains("{0}", StringComparison.Ordinal) &&
@@ -69,6 +70,15 @@ check(YouTube.IsRateLimitError("ERROR: HTTP Error 429: Too Many Requests") &&
 check(YouTube.ValidCookies("# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t2147483647\tVISITOR_INFO1_LIVE\ttest\n") &&
     !YouTube.ValidCookies("VISITOR_INFO1_LIVE=test") && !YouTube.ValidCookies("# HTTP Cookie File\n\0"),
     "only bounded Netscape cookie files can be saved");
+const string tvTemplate = "https://example.com/themes/{tvdbId}.mp3";
+check(TvThemeSource.ValidTemplate(tvTemplate) &&
+    TvThemeSource.Url(tvTemplate, "73244")?.AbsoluteUri == "https://example.com/themes/73244.mp3" &&
+    TvThemeSource.Url(tvTemplate, "not-an-id") is null &&
+    !TvThemeSource.ValidTemplate("http://example.com/{tvdbId}.mp3") &&
+    !TvThemeSource.ValidTemplate("https://127.0.0.1/{tvdbId}.mp3") &&
+    !TvThemeSource.ValidTemplate("https://example.com/?id={tvdbId}") &&
+    !TvThemeSource.ValidTemplate("https://example.com/theme.mp3"),
+    "TV theme templates require public HTTPS URLs with one numeric TVDB ID in the path");
 check(YouTube.DenoAsset(false, false, Architecture.X64) == "deno-x86_64-unknown-linux-gnu.zip" &&
     YouTube.DenoAsset(true, false, Architecture.Arm64) == "deno-aarch64-pc-windows-msvc.zip" &&
     YouTube.DenoAsset(false, false, Architecture.X64, musl: true) is null,
