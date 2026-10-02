@@ -126,6 +126,15 @@ check(Matcher.Select(work, [dream, video("ccccccccccc", "Dune 2021 Main Theme", 
     "main theme wins over soundtrack track fallback");
 check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune 1984 Main Theme", "")) is null, "wrong edition without metadata rejected");
 check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Dune 2021 Main Theme cover", "")) is null, "cover without metadata rejected");
+var livePerformance = video("bbbbbbbbbbb", "Hans Zimmer Performs the Dune Soundtrack LIVE", "Dune 2021 soundtrack", 189);
+check(!Matcher.Promising(work, livePerformance) && Matcher.Evaluate(work, livePerformance) is null,
+    "live performances cannot be shortlisted or selected");
+check(!Matcher.Promising(work, video("bbbbbbbbbbb", "Dune 2021 Main Theme (Live)", "")),
+    "parenthesized live recording labels are excluded");
+var theyLive = new Work("They Live", null, 1988, false);
+var theyLiveTheme = video("bbbbbbbbbbb", "They Live 1988 Main Theme", "");
+check(Matcher.Promising(theyLive, theyLiveTheme) && Matcher.Evaluate(theyLive, theyLiveTheme) is not null,
+    "live in the work title is not a live-performance label");
 check(Matcher.Evaluate(work, video("bbbbbbbbbbb", "Top 10 Dune 2021 Themes", "")) is null, "ranking video rejected");
 check(Matcher.Select(work, [original, video("bbbbbbbbbbb", "Dune Main Theme", licensed.Replace("Hans Zimmer", "Other Artist"))],
     new HashSet<string>(), new HashSet<string>())?.Video.Id == original.Id, "first equally ranked recording selected");

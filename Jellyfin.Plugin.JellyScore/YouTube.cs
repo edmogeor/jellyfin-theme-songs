@@ -369,7 +369,7 @@ public sealed class YouTube
             }
             finally
             {
-                _nextRequest = DateTimeOffset.UtcNow.AddSeconds(download ? JellyScoreConstants.DownloadSpacingSeconds : 0);
+                _nextRequest = DateTimeOffset.UtcNow.AddSeconds(download ? JellyScoreConstants.DownloadSpacingSeconds : JellyScoreConstants.InternalRequestSpacingSeconds);
             }
         }
         finally
@@ -396,8 +396,14 @@ public sealed class YouTube
 
 public static partial class Matcher
 {
-    [GeneratedRegex(@"\b(cover|remix|fan.?edit|extended|reaction|trailer|review|full album|compilation|livestream|live stream|karaoke|piano cover|tutorials?|how to play|game|parody|tribute|ranked|top\s?10)\b", RegexOptions.IgnoreCase)]
-    private static partial Regex Reject();
+    private static readonly string[] ExcludedFormatPatterns =
+    [
+        "cover", "remix", @"fan.?edit", "extended", "reaction", "trailer", "review", "full album", "compilation",
+        "livestream", "live stream", @"live (?:performance|concert|at|session|version|recording)", @"live(?=\)|\])",
+        @"(?:performed|recorded) live", @"performs?\b.*\blive", "karaoke", "piano cover", "tutorials?",
+        "how to play", "game", "parody", "tribute", "ranked", @"top\s?10"
+    ];
+    private static readonly Regex ExcludedFormat = new(@"\b(" + string.Join("|", ExcludedFormatPatterns) + @")\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     [GeneratedRegex(@"\b(?:s\d{1,2}\s*e\d{1,3}|\d{1,2}x\d{1,3}|season\s+\d+\s+episode\s+\d+)\b", RegexOptions.IgnoreCase)]
     private static partial Regex EpisodeNumber();
     [GeneratedRegex(@"\b(?:opening|intro(?:duction)?)\s+scene\b", RegexOptions.IgnoreCase)]
@@ -471,7 +477,7 @@ public static partial class Matcher
 
     public static bool Promising(Work work, Video video) =>
         (video.Seconds is not { } seconds || seconds is >= JellyScoreConstants.MinimumThemeSeconds and <= JellyScoreConstants.MaximumThemeSeconds) &&
-        !Reject().IsMatch(video.Title) && !EpisodeClip(video.Title) &&
+        !ExcludedFormat.IsMatch(video.Title) && !EpisodeClip(video.Title) &&
         (!Sequel().IsMatch(video.Title) || Sequel().IsMatch(work.Title)) &&
         Theme().IsMatch(video.Title) &&
         (Contains(video.Title, work.Title) || Contains(video.Description, work.Title) ||
@@ -549,7 +555,7 @@ public static partial class Matcher
         { reason = "No evidence of a shared franchise theme"; return null; }
         if (work.Franchise && Regex.IsMatch(Normal(album), $@"^{Regex.Escape(Normal(work.Title))} (?:and|part|episode|chapter)\b"))
         { reason = "Theme belongs to a specific installment"; return null; }
-        if (Reject().IsMatch(title) || Reject().IsMatch(album) || EpisodeClip(title))
+        if (ExcludedFormat.IsMatch(title) || ExcludedFormat.IsMatch(album) || EpisodeClip(title))
         { reason = "Cover, remix, sequel, or other excluded format"; return null; }
         if (Sequel().IsMatch(identityText) && !Sequel().IsMatch(work.Title))
         { reason = "Soundtrack belongs to a different sequel"; return null; }
