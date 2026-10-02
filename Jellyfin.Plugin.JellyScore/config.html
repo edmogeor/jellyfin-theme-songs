@@ -442,6 +442,25 @@
           ></label
         >
       </div>
+      <div class="checkboxContainer">
+        <label class="emby-checkbox-label"
+          ><input
+            type="checkbox"
+            name="preferFranchiseThemes"
+            is="emby-checkbox"
+            aria-describedby="franchiseHelp"
+          /><span data-i18n="preferFranchiseThemes"
+            >{{preferFranchiseThemes}}</span
+          ></label
+        >
+        <div
+          id="franchiseHelp"
+          class="fieldDescription"
+          data-i18n="franchiseHelp"
+        >
+          {{franchiseHelp}}
+        </div>
+      </div>
       <div class="inputContainer themeStrengthOption">
         <label
           for="themeStrength"
@@ -711,6 +730,7 @@
         JSON.stringify([
           $("#themeSettings").elements.enabled.checked,
           $("#themeSettings").elements.scanOnLibraryRefresh.checked,
+          $("#themeSettings").elements.preferFranchiseThemes.checked,
           $("#themeSettings").elements.minimumMatchStrength.value,
           $("#themeSettings").elements.targetLufs.value,
           $("#themeSettings").elements.youTubeCookies.value,
@@ -859,6 +879,8 @@
         updateRowActions();
         form.elements.enabled.checked = data.Enabled;
         form.elements.scanOnLibraryRefresh.checked = data.ScanOnLibraryRefresh;
+        form.elements.preferFranchiseThemes.checked =
+          data.PreferFranchiseThemes;
         form.elements.minimumMatchStrength.value = data.MinimumMatchStrength;
         form.elements.targetLufs.value = data.TargetLufs;
         form.elements.youTubeCookies.value = data.YouTubeCookies || "";
@@ -923,7 +945,9 @@
           const theme = document.createElement("td");
           theme.className = "detailTableBodyCell";
           const heading = document.createElement("strong");
-          heading.textContent = item.Name + " (" + (item.Year || "?") + ")";
+          heading.textContent =
+            item.Name +
+            (item.Kind === "Collection" ? "" : " (" + (item.Year || "?") + ")");
           const status = document.createElement("div");
           status.className = "fieldDescription";
           status.hidden = item.Status === "Active";
@@ -1161,6 +1185,8 @@
         if (settingsValue() === savedSettings) return;
         const enabled = form.elements.enabled.checked;
         const scanOnLibraryRefresh = form.elements.scanOnLibraryRefresh.checked;
+        const preferFranchiseThemes =
+          form.elements.preferFranchiseThemes.checked;
         const minimumMatchStrength =
           form.elements.minimumMatchStrength.valueAsNumber;
         const targetLufs = form.elements.targetLufs.valueAsNumber;
@@ -1179,6 +1205,7 @@
             body: JSON.stringify({
               enabled,
               scanOnLibraryRefresh,
+              preferFranchiseThemes,
               libraries,
               minimumMatchStrength,
               targetLufs,

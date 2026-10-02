@@ -14,6 +14,8 @@
   "libraries": "ライブラリ",
   "automatic": "新しいアイテムを自動的に処理する",
   "scanOnLibraryRefresh": "Jellyfinのメディアライブラリのスキャン後にテーマ音楽を検索する",
+  "preferFranchiseThemes": "映画シリーズ共通のテーマを優先する",
+  "franchiseHelp": "TMDbコレクションの映画では、作品固有のテーマより先にシリーズ共通のテーマを探します。",
   "saveSettings": "設定を保存",
   "fullScan": "全体スキャン",
   "scanHelp": "選択したライブラリを検索します。既存のテーマ曲をスキップし、削除されたダウンロードを再試行します。",

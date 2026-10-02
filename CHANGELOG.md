@@ -1,3 +1,15 @@
+## [0.1.25.0]
+
+### Added
+
+- Optionally prefer shared franchise themes for movies using Jellyfin's TMDb collection metadata, even without a Jellyfin collection. Fall back to film-specific themes when no shared recording qualifies.
+- Add managed themes to selected Jellyfin collections independently of the movie preference. Show the Collections library option only when collections exist.
+
+### Improved
+
+- Preserve existing fades in downloaded audio instead of applying another fade at the same end.
+- Allow Docker smoke checks to reach Jellyfin through its container when the published host port is unavailable.
+
 ## [0.1.24.0]
 
 ### Added

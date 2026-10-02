@@ -14,6 +14,8 @@
   "libraries": "Biblioteker",
   "automatic": "Behandle nye elementer automatisk",
   "scanOnLibraryRefresh": "Søk etter temamusikk etter at Jellyfin har skannet mediebiblioteket",
+  "preferFranchiseThemes": "Foretrekk temaer for filmserier",
+  "franchiseHelp": "For filmer i en TMDb-samling søkes det etter et felles tema før et tema for den enkelte filmen.",
   "saveSettings": "Lagre innstillinger",
   "fullScan": "Full skanning",
   "scanHelp": "Søk i valgte biblioteker. Hopp over eksisterende temamusikk og prøv slettede nedlastinger på nytt.",

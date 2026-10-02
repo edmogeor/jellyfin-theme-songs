@@ -1,6 +1,7 @@
 using System.Threading.Channels;
 using Jellyfin.Data.Enums;
 using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Collections;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
@@ -10,7 +11,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.JellyScore;
 
-public sealed class NewItemWorker(ILibraryManager library, ThemeService themes, ILogger<NewItemWorker> logger) : BackgroundService
+public sealed class NewItemWorker(ILibraryManager library, ICollectionManager collections, ThemeService themes, ILogger<NewItemWorker> logger) : BackgroundService
 {
     private readonly Channel<Guid> _queue = Channel.CreateBounded<Guid>(new BoundedChannelOptions(JellyScoreConstants.ScanQueueCapacity) { FullMode = BoundedChannelFullMode.DropWrite, SingleReader = true });
     private readonly HashSet<Guid> _queued = [];
@@ -19,15 +20,25 @@ public sealed class NewItemWorker(ILibraryManager library, ThemeService themes, 
     public override Task StartAsync(CancellationToken ct)
     {
         library.ItemAdded += Added;
+        collections.ItemsAddedToCollection += CollectionUpdated;
         return base.StartAsync(ct);
     }
 
     private void Added(object? sender, ItemChangeEventArgs args)
     {
-        if (!Plugin.Instance.Configuration.Enabled || args.Item is not (Movie or Series) || args.Item.ExtraType is not null || args.Item.IsVirtualItem) return;
+        if (!Plugin.Instance.Configuration.Enabled || args.Item is not (Movie or Series or BoxSet) || args.Item.ExtraType is not null || args.Item.IsVirtualItem) return;
         lock (_gate)
         {
             if (_queued.Add(args.Item.Id) && !_queue.Writer.TryWrite(args.Item.Id)) _queued.Remove(args.Item.Id);
+        }
+    }
+
+    private void CollectionUpdated(object? sender, CollectionModifiedEventArgs args)
+    {
+        if (!Plugin.Instance.Configuration.Enabled) return;
+        lock (_gate)
+        {
+            if (_queued.Add(args.Collection.Id) && !_queue.Writer.TryWrite(args.Collection.Id)) _queued.Remove(args.Collection.Id);
         }
     }
 
@@ -55,6 +66,7 @@ public sealed class NewItemWorker(ILibraryManager library, ThemeService themes, 
     public override async Task StopAsync(CancellationToken ct)
     {
         library.ItemAdded -= Added;
+        collections.ItemsAddedToCollection -= CollectionUpdated;
         _queue.Writer.TryComplete();
         await base.StopAsync(ct);
     }
@@ -148,7 +160,7 @@ public sealed class ThemeScan(ILibraryManager library, ThemeService themes, Stor
             themes.ResetSuppression();
             var selected = Plugin.Instance.Configuration.SelectedLibraries(library);
             if (selected.Length == 0) { progress.Report(JellyScoreConstants.ProgressComplete); return; }
-            var query = new InternalItemsQuery { IncludeItemTypes = [BaseItemKind.Movie, BaseItemKind.Series], AncestorIds = selected, Recursive = true };
+            var query = new InternalItemsQuery { IncludeItemTypes = [BaseItemKind.Movie, BaseItemKind.Series, BaseItemKind.BoxSet], AncestorIds = selected, Recursive = true };
             status.Total = library.GetCount(query);
             status.StartedAt = DateTimeOffset.UtcNow;
             status.LastCompletedAt = status.StartedAt;

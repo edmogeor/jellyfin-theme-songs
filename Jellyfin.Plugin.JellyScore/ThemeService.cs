@@ -37,7 +37,7 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
             {
                 var item = library.GetItemById(record.ItemId);
                 if (item is null) { stale.Add((record, true)); continue; }
-                var currentFolder = item is Series ? item.Path : Path.GetDirectoryName(item.Path);
+                var currentFolder = item is Series or BoxSet ? item.Path : Path.GetDirectoryName(item.Path);
                 if (!Directory.Exists(record.Folder) && !Directory.Exists(currentFolder)) continue;
                 try
                 {
@@ -93,8 +93,23 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
 
     private (string Folder, string Library, Guid LibraryId) Location(BaseItem item)
     {
-        if (item is not (Movie or Series) || item.IsVirtualItem || item.ExtraType is not null || item.SourceType != SourceType.Library)
+        if (item is not (Movie or Series or BoxSet) || item.IsVirtualItem || item.ExtraType is not null || item.SourceType != SourceType.Library)
             throw new InvalidOperationException("Unsupported item.");
+        if (item is BoxSet boxSet)
+        {
+            var member = boxSet.GetLinkedChildren().OfType<Movie>()
+                .FirstOrDefault(movie => !string.IsNullOrWhiteSpace(movie.TmdbCollectionName) &&
+                    string.Equals(FranchiseTitle(movie.TmdbCollectionName), FranchiseTitle(boxSet.Name), StringComparison.OrdinalIgnoreCase));
+            if (member is null || string.IsNullOrWhiteSpace(boxSet.Path) || !Directory.Exists(boxSet.Path))
+                throw new InvalidOperationException("Collection has no matching movie or physical folder.");
+            var selectedLibrary = library.GetCollectionFolders(boxSet).FirstOrDefault(f => Plugin.Instance.Configuration.Libraries is null ||
+                Plugin.Instance.Configuration.Libraries.Contains(f.Id)) ?? throw new InvalidOperationException("Item is not in a selected library.");
+            var collectionFolder = Canonical(boxSet.Path);
+            if (!selectedLibrary.PhysicalLocations.Append(selectedLibrary.Path).Where(Directory.Exists).Select(Canonical)
+                .Any(root => collectionFolder.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.Ordinal)))
+                throw new InvalidOperationException("Item needs a physical folder inside its library.");
+            return (collectionFolder, selectedLibrary.Name, selectedLibrary.Id);
+        }
         var folders = library.GetCollectionFolders(item);
         var selectedLibraries = Plugin.Instance.Configuration.Libraries;
         var selected = folders.FirstOrDefault(f => selectedLibraries is null || selectedLibraries.Contains(f.Id));
@@ -134,6 +149,9 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
 
     private void Refresh(BaseItem item) => providers.QueueRefresh(item.Id, new MetadataRefreshOptions(new DirectoryService(fileSystem)), RefreshPriority.High);
 
+    private static string FranchiseTitle(string name) => name.EndsWith(" Collection", StringComparison.OrdinalIgnoreCase)
+        ? name[..^" Collection".Length].Trim() : name.Trim();
+
     private async Task<bool> NoCompetingEdition(BaseItem item, Work work, CancellationToken ct)
     {
         if (item is not Movie || work.Year is null || !item.TryGetProviderId(MetadataProvider.Tmdb, out var tmdbId)) return false;
@@ -172,6 +190,20 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
         {
             var item = library.GetItemById(id) ?? throw new InvalidOperationException("Item no longer exists.");
             var (folder, libraryName, libraryId) = Location(item);
+            if (!replacement && item is Movie movie && !string.IsNullOrWhiteSpace(movie.TmdbCollectionName))
+            {
+                var collection = library.GetItemList(new InternalItemsQuery { IncludeItemTypes = [Jellyfin.Data.Enums.BaseItemKind.BoxSet] })
+                    .OfType<BoxSet>().FirstOrDefault(boxSet =>
+                        string.Equals(FranchiseTitle(boxSet.Name), FranchiseTitle(movie.TmdbCollectionName), StringComparison.OrdinalIgnoreCase) &&
+                        boxSet.GetLinkedChildren().Any(child => child.Id == movie.Id));
+                if (collection is not null && library.GetCollectionFolders(collection).Any(f =>
+                    Plugin.Instance.Configuration.Libraries is null || Plugin.Instance.Configuration.Libraries.Contains(f.Id)))
+                {
+                    try { await Process(collection.Id, false, ct, reportStage); }
+                    catch (Exception e) when (e is not OperationCanceledException and not RateLimitFailure)
+                    { logger.LogWarning(e, "Collection theme processing failed for {ItemId}", collection.Id); }
+                }
+            }
             var existing = store.Read(s => s.Themes.GetValueOrDefault(id));
             if (replacement && existing is null) throw new InvalidOperationException("No managed theme to refresh.");
             if (existing is not null && !Owned(existing, item, folder)) throw new InvalidOperationException("Theme changed elsewhere. The file was left untouched.");
@@ -180,6 +212,14 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
             if (OtherTheme(item, folder, existing?.Path)) return new("Already themed");
             if (string.IsNullOrWhiteSpace(item.Name)) throw new InvalidOperationException("Item title is not ready; retry after metadata refresh.");
             var work = new Work(item.Name, item.OriginalTitle, item.ProductionYear, item is Series);
+            Work? franchise = item switch
+            {
+                Movie { TmdbCollectionName: { } name } movieItem when !string.IsNullOrWhiteSpace(name) =>
+                    new Work(FranchiseTitle(name), null, null, false, Franchise: true, Installments: [movieItem.Name]),
+                BoxSet collectionItem => new Work(FranchiseTitle(collectionItem.Name), null, null, false, Franchise: true,
+                    Installments: collectionItem.GetLinkedChildren().OfType<Movie>().Select(m => m.Name).ToArray()),
+                _ => null
+            };
             var minimumMatchStrength = Plugin.Instance.Configuration.EffectiveMinimumMatchStrength;
             var excludedIds = store.Read(s => new HashSet<string>(s.ExcludedVideos.GetValueOrDefault(id) ?? []));
             var excludedRecordings = store.Read(s => new HashSet<string>(s.ExcludedRecordings.GetValueOrDefault(id) ?? []));
@@ -213,7 +253,7 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
                 store.Change(s =>
                 {
                     s.Themes[id] = new ManagedTheme { ItemId = id, Folder = folder, Path = path, LibraryId = libraryId, Library = libraryName,
-                        Kind = item is Movie ? "Movie" : "Series", Name = item.Name, Year = item.ProductionYear,
+                        Kind = item is Movie ? "Movie" : item is BoxSet ? "Collection" : "Series", Name = item.Name, Year = item.ProductionYear,
                         VideoId = source.Video.Id, VideoTitle = source.Video.Title, Recording = source.Recording, SourceUrl = sourceUrl,
                         Hash = hash, Score = source.Score, Evidence = source.Evidence, Date = DateTimeOffset.UtcNow };
                     s.Outcomes[id] = result;
@@ -258,8 +298,31 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
                 return (withoutYear, alternative, true);
             }
             reportStage?.Invoke("stageSearching");
-            var videos = await youtube.Search(work, ct);
-            var (selectedWork, choice, editionChecked) = await Select(work, videos, false);
+            var preferFranchise = franchise is not null && (item is BoxSet || Plugin.Instance.Configuration.PreferFranchiseThemes);
+            IReadOnlyList<Video> videos = [];
+            Choice? choice = null;
+            var editionChecked = false;
+            if (preferFranchise)
+            {
+                videos = await youtube.Search(franchise!, ct);
+                choice = Matcher.Select(franchise!, videos, excludedIds, excludedRecordings, minimumMatchStrength);
+                if (choice is null)
+                {
+                    videos = videos.Concat(await youtube.Search(franchise!, ct, nextPage: true)).DistinctBy(video => video.Id).ToArray();
+                    choice = Matcher.Select(franchise!, videos, excludedIds, excludedRecordings, minimumMatchStrength);
+                }
+                if (choice is not null) work = franchise!;
+            }
+            if (choice is null && item is BoxSet)
+            {
+                var reason = Matcher.RejectionReason(franchise!, videos, excludedIds, excludedRecordings, out var code, minimumMatchStrength);
+                store.Change(s => s.Outcomes[id] = "No match found: " + reason);
+                return new("No match found", code);
+            }
+            if (choice is null) videos = await youtube.Search(work, ct);
+            var (selectedWork, filmChoice, checkedFilmEdition) = choice is null ? await Select(work, videos, false) : (work, choice, false);
+            choice = filmChoice;
+            editionChecked = checkedFilmEdition;
             work = selectedWork;
             if (choice is null)
             {

@@ -37,6 +37,7 @@ public sealed class Settings : BasePluginConfiguration
 {
     public bool Enabled { get; set; } = true;
     public bool ScanOnLibraryRefresh { get; set; } = true;
+    public bool PreferFranchiseThemes { get; set; }
     public Guid[]? Libraries { get; set; }
     public int? MinimumMatchStrength { get; set; } = JellyScoreConstants.DefaultMatchStrength;
     public int? TargetLufs { get; set; } = JellyScoreConstants.DefaultTargetLufs;

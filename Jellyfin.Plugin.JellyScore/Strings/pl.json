@@ -14,6 +14,8 @@
   "libraries": "Biblioteki",
   "automatic": "Automatycznie przetwarzaj nowe pozycje",
   "scanOnLibraryRefresh": "Szukaj motywów po skanowaniu biblioteki multimediów przez Jellyfin",
+  "preferFranchiseThemes": "Preferuj motywy serii filmowych",
+  "franchiseHelp": "Dla filmów z kolekcji TMDb najpierw szukaj wspólnego motywu serii, a potem motywu konkretnego filmu.",
   "saveSettings": "Zapisz ustawienia",
   "fullScan": "Pełne skanowanie",
   "scanHelp": "Przeszukaj wybrane biblioteki. Pomiń istniejącą muzykę i ponów próby pobrania usuniętych plików.",

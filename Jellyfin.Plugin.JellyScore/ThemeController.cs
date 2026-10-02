@@ -1,4 +1,7 @@
+using Jellyfin.Data.Enums;
+using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,13 +15,16 @@ public sealed class ThemeController(ThemeService themes, ThemeScan scan, ITaskMa
 {
     [HttpGet("settings")]
     public object Settings() => new { Plugin.Instance.Configuration.Enabled, Plugin.Instance.Configuration.ScanOnLibraryRefresh,
+        Plugin.Instance.Configuration.PreferFranchiseThemes,
         Libraries = Plugin.Instance.Configuration.SelectedLibraries(library),
         MinimumMatchStrength = Plugin.Instance.Configuration.EffectiveMinimumMatchStrength,
         TargetLufs = Plugin.Instance.Configuration.EffectiveTargetLufs,
         Plugin.Instance.Configuration.YouTubeCookies,
         Plugin.Instance.Configuration.TvThemeUrlTemplate,
         YouTube.DownloaderAvailable, YouTube.DownloaderError, YouTube.RuntimeError,
-        LibrariesAvailable = library.GetVirtualFolders().Select(f => new { f.Name, f.ItemId }) };
+        LibrariesAvailable = library.GetVirtualFolders().Where(f => f.CollectionType != CollectionTypeOptions.boxsets ||
+            library.GetCount(new InternalItemsQuery { IncludeItemTypes = [BaseItemKind.BoxSet] }) > 0)
+            .Select(f => new { f.Name, f.ItemId }) };
 
     [HttpPost("downloader/retry")]
     public async Task<IActionResult> RetryDownloader(CancellationToken ct)
@@ -34,7 +40,7 @@ public sealed class ThemeController(ThemeService themes, ThemeScan scan, ITaskMa
         return stream is null ? NotFound() : File(stream, "application/json");
     }
 
-    public sealed record SettingsRequest(bool Enabled, Guid[]? Libraries, int? MinimumMatchStrength, int? TargetLufs, bool? ScanOnLibraryRefresh, string? YouTubeCookies, string? TvThemeUrlTemplate);
+    public sealed record SettingsRequest(bool Enabled, Guid[]? Libraries, int? MinimumMatchStrength, int? TargetLufs, bool? ScanOnLibraryRefresh, string? YouTubeCookies, string? TvThemeUrlTemplate, bool? PreferFranchiseThemes);
 
     [HttpPost("settings")]
     public IActionResult Save([FromBody] SettingsRequest request)
@@ -48,6 +54,7 @@ public sealed class ThemeController(ThemeService themes, ThemeScan scan, ITaskMa
             return BadRequest(new { Code = "invalidTvThemeUrl" });
         var config = Plugin.Instance.Configuration;
         config.Enabled = request.Enabled;
+        if (request.PreferFranchiseThemes is { } preferFranchiseThemes) config.PreferFranchiseThemes = preferFranchiseThemes;
         if (request.ScanOnLibraryRefresh is { } scanOnLibraryRefresh) config.ScanOnLibraryRefresh = scanOnLibraryRefresh;
         config.Libraries = request.Libraries ?? [];
         if (request.MinimumMatchStrength is { } minimumMatchStrength) config.MinimumMatchStrength = minimumMatchStrength;

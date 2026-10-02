@@ -11,9 +11,30 @@ import uuid
 
 BASE = "http://127.0.0.1:18096"
 PLUGIN = "129e8a8b-87f1-48d3-802b-7dd151d72920"
+through_container = False
+
+
+def container_request(method, path, data, headers, timeout):
+    command = [
+        "docker", "compose", "-f", "tests/e2e/compose.yaml", "exec", "-T", "jellyfin",
+        "curl", "--silent", "--show-error", "--max-time", str(timeout),
+        "--write-out", "\n%{http_code}", "--request", method,
+    ]
+    for name, value in headers.items():
+        command.extend(["--header", f"{name}: {value}"])
+    if data is not None:
+        command.extend(["--data-binary", "@-"])
+    command.append("http://127.0.0.1:8096" + path)
+    try:
+        result = subprocess.run(command, input=data, capture_output=True, timeout=timeout + 5, check=True)
+        content, _, status = result.stdout.rpartition(b"\n")
+        return int(status), json.loads(content or b"null")
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, ValueError):
+        return 503, None
 
 
 def request(method, path, body=None, token=None, timeout=5):
+    global through_container
     headers = {"Content-Type": "application/json"}
     headers["Authorization"] = (
         f'MediaBrowser Token="{token}"'
@@ -21,6 +42,8 @@ def request(method, path, body=None, token=None, timeout=5):
         else 'MediaBrowser Client="e2e", Device="e2e", DeviceId="e2e", Version="1"'
     )
     data = json.dumps(body).encode() if body is not None else None
+    if through_container:
+        return container_request(method, path, data, headers, timeout)
     try:
         with urllib.request.urlopen(
             urllib.request.Request(BASE + path, data=data, headers=headers, method=method), timeout=timeout
@@ -31,8 +54,9 @@ def request(method, path, body=None, token=None, timeout=5):
             return error.code, json.loads(error.read())
         except (ValueError, UnicodeDecodeError):
             return error.code, None
-    except (urllib.error.URLError, ConnectionError):
-        return 503, None
+    except (urllib.error.URLError, ConnectionError, TimeoutError):
+        through_container = True
+        return container_request(method, path, data, headers, timeout)
 
 
 def field(data, name):
@@ -134,6 +158,7 @@ assert config["ScanOnLibraryRefresh"] is True, "library-refresh scanning must de
 assert config.get("Libraries") is None, "new installs must default to all libraries"
 assert config["MinimumMatchStrength"] == 50, "new installs default to match strength 50"
 assert config["TargetLufs"] == -26, "new installs default to quieter themes"
+assert config["PreferFranchiseThemes"] is False, "movie franchise preference defaults off"
 status, settings = request("GET", "/ThemeSongs/settings", token=token)
 assert status == 200, f"admin settings: {status}"
 assert settings.get("downloaderAvailable", settings.get("DownloaderAvailable")) is True, "downloader release metadata missing"
@@ -141,6 +166,7 @@ assert field(settings, "downloaderError") is None and field(settings, "runtimeEr
 assert field(settings, "minimumMatchStrength") == 50, "admin settings expose the effective match strength"
 assert field(settings, "targetLufs") == -26, "admin settings expose the effective loudness target"
 assert field(settings, "scanOnLibraryRefresh") is True, "admin settings expose the default scan trigger"
+assert field(settings, "preferFranchiseThemes") is False, "admin settings expose the movie preference"
 assert field(settings, "youTubeCookies") is None, "cookies are optional by default"
 assert field(settings, "tvThemeUrlTemplate") is None, "TV theme URL is optional by default"
 status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": [], "minimumMatchStrength": -1}, token)
@@ -158,11 +184,13 @@ for template in ("http://example.com/{tvdbId}.mp3", "https://127.0.0.1/{tvdbId}.
 status, strings = request("GET", "/ThemeSongs/strings/en-us", token=token)
 assert status == 200 and strings["scanLibraries"] == "Scan libraries", f"English translations: {status} {strings}"
 assert strings["automatic"] == "Automatically process new items" and strings["scanOnLibraryRefresh"] == "Scan after Jellyfin scans the media library"
+assert strings["preferFranchiseThemes"] and strings["franchiseHelp"], "franchise setting has English copy"
 english_strings = strings
 status, strings = request("GET", "/ThemeSongs/strings/fr", token=token)
 assert status == 200 and strings["scanLibraries"] == "Analyser les bibliothèques", f"French translations: {status} {strings}"
 assert strings["scanOnLibraryRefresh"], "French scan trigger translation missing"
 assert strings["cookiesLabel"] and strings["invalidCookies"], "French cookie settings translation missing"
+assert strings["preferFranchiseThemes"] and strings["franchiseHelp"], "French franchise setting translation missing"
 status, _ = request("GET", "/ThemeSongs/strings/zz", token=token)
 assert status == 404, f"unsupported translation should fall back to English: {status}"
 status, downloads = request("GET", "/ThemeSongs/downloads", token=token)
@@ -194,6 +222,10 @@ assert status == 200 and field(settings, "tvThemeUrlTemplate") == tv_template, "
 status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "scanOnLibraryRefresh": False, "libraries": selected}, token)
 assert status == 204, f"disable library-refresh scanning: {status}"
 assert_settings(token, True, selected, 75, -30, False)
+status, _ = request("POST", "/ThemeSongs/settings", {"enabled": True, "libraries": selected, "preferFranchiseThemes": True}, token)
+assert status == 204, f"enable franchise preference: {status}"
+status, settings = request("GET", "/ThemeSongs/settings", token=token)
+assert status == 200 and field(settings, "preferFranchiseThemes") is True, "franchise preference is saved"
 status, _ = request("POST", f"/Plugins/{PLUGIN}/Configuration", {"Enabled": True, "ScanOnLibraryRefresh": False, "Libraries": selected, "MinimumMatchStrength": None, "TargetLufs": None, "YouTubeCookies": cookies, "TvThemeUrlTemplate": tv_template}, token)
 assert status == 204, f"simulate an existing config with an unset match strength: {status}"
 subprocess.run(["docker", "compose", "-f", "tests/e2e/compose.yaml", "restart", "jellyfin"], check=True)

@@ -14,6 +14,8 @@
   "libraries": "Bibliotheken",
   "automatic": "Neue Einträge automatisch verarbeiten",
   "scanOnLibraryRefresh": "Nach dem Scan der Jellyfin-Medienbibliothek nach Titelmusik suchen",
+  "preferFranchiseThemes": "Filmmusik für Filmreihen bevorzugen",
+  "franchiseHelp": "Bei Filmen in einer TMDb-Sammlung zuerst nach einem gemeinsamen Thema suchen, dann nach einem Thema für den einzelnen Film.",
   "saveSettings": "Einstellungen speichern",
   "fullScan": "Vollständiger Scan",
   "scanHelp": "Ausgewählte Bibliotheken durchsuchen. Vorhandene Titelmusik überspringen und gelöschte Downloads erneut versuchen.",

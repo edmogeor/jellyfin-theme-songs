@@ -14,6 +14,8 @@
   "libraries": "Kirjastot",
   "automatic": "Käsittele uudet kohteet automaattisesti",
   "scanOnLibraryRefresh": "Etsi tunnusmusiikkia, kun Jellyfin on tarkistanut mediakirjaston",
+  "preferFranchiseThemes": "Suosi elokuvasarjan tunnusmusiikkia",
+  "franchiseHelp": "TMDb-kokoelmaan kuuluville elokuville etsitään ensin sarjan yhteistä tunnusmusiikkia ja sitten elokuvakohtaista musiikkia.",
   "saveSettings": "Tallenna asetukset",
   "fullScan": "Täysi tarkistus",
   "scanHelp": "Etsi valituista kirjastoista. Ohita olemassa olevat tunnusmusiikit ja yritä poistettuja latauksia uudelleen.",

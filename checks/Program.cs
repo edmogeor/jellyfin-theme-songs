@@ -158,6 +158,24 @@ check(Matcher.Select(oak, [endOfOakSuite, mainOnEndOfDays], new HashSet<string>(
 check(Matcher.Select(oak, [endOfOakSuite, mainOnEndOfDays], new HashSet<string> { endOfOakSuite.Id }, new HashSet<string>())?.Video.Id == mainOnEndOfDays.Id,
     "excluded source leaves the other soundtrack recording eligible");
 var harry = new Work("Harry Potter and the Sorcerer's Stone", null, 2001, false);
+var franchise = new Work("Harry Potter", null, null, false, Franchise: true,
+    Installments: ["Harry Potter and the Sorcerer's Stone", "Harry Potter and the Chamber of Secrets"]);
+var sharedTheme = video("fffffffffff", "Harry Potter Main Theme", "", 150);
+check(Matcher.Promising(franchise, sharedTheme) && Matcher.Select(franchise, [sharedTheme], new HashSet<string>(), new HashSet<string>(), 50)?.Video.Id == sharedTheme.Id,
+    "a TMDb franchise can match a yearless shared theme independently of a film title");
+check(Matcher.Evaluate(harry, sharedTheme) is null,
+    "a yearless shared franchise theme does not weaken film-specific matching");
+check(Matcher.Evaluate(franchise, video("ggggggggggg", "Harry Potter and the Chamber of Secrets Main Theme", "")) is null &&
+    Matcher.Evaluate(franchise, video("hhhhhhhhhhh", "Harry Potter Main Theme", "Album: Harry Potter and the Sorcerer's Stone")) is null &&
+    Matcher.Evaluate(franchise, video("iiiiiiiiiii", "Harry Potter 2002 Main Theme", "")) is null &&
+    Matcher.Evaluate(franchise, video("jjjjjjjjjjj", "Harry Potter and the Goblet of Fire Main Theme", "")) is null,
+    "an installment-specific upload is not a shared franchise theme");
+check(Matcher.Select(franchise, [sharedTheme], new HashSet<string>(), new HashSet<string>(), 100) is null,
+    "franchise preference never bypasses the minimum match strength");
+var duneFranchise = new Work("Dune", null, null, false, Franchise: true, Installments: ["Dune"]);
+check(Matcher.Evaluate(duneFranchise, video("kkkkkkkkkkk", "Dune Main Theme", "")) is null &&
+    Matcher.Evaluate(duneFranchise, video("lllllllllll", "Dune Collection Main Theme", "")) is not null,
+    "a franchise sharing a film title requires explicit collection evidence");
 var named = video("wtHra9tFISY", "Hedwig's Theme", "Provided to YouTube by Atlantic Records\n\nHedwig's Theme · John Williams\n\nHarry Potter and The Sorcerer's Stone Original Motion Picture Soundtrack\n\n℗ 2001 Warner Records Inc.", 309);
 check(Matcher.Promising(harry, named), "named themes remain in the cheap shortlist");
 check(Matcher.Evaluate(harry, named) is { Score: > 0 }, "named theme linked via soundtrack album");

@@ -14,6 +14,8 @@
   "libraries": "Libraries",
   "automatic": "Automatically process new items",
   "scanOnLibraryRefresh": "Scan after Jellyfin scans the media library",
+  "preferFranchiseThemes": "Prefer franchise themes for movies",
+  "franchiseHelp": "For movies in a TMDb collection, search for a shared franchise theme before a film-specific theme.",
   "saveSettings": "Save settings",
   "fullScan": "Full scan",
   "scanHelp": "Search selected libraries. Skip existing themes and retry deleted downloads.",

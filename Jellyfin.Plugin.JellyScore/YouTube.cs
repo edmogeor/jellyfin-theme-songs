@@ -7,7 +7,8 @@ using System.IO.Compression;
 
 namespace Jellyfin.Plugin.JellyScore;
 
-public sealed record Work(string Title, string? OriginalTitle, int? Year, bool Series, bool NoCompetingEdition = false);
+public sealed record Work(string Title, string? OriginalTitle, int? Year, bool Series, bool NoCompetingEdition = false,
+    bool Franchise = false, IReadOnlyList<string>? Installments = null);
 public sealed record Video(string Id, string Title, string Description, string Channel, int? Seconds,
     string? Album = null, string? Track = null, string? Artist = null, int? ReleaseYear = null, DateOnly? UploadDate = null);
 public sealed record Choice(Video Video, string Recording, int Score, string Evidence);
@@ -218,7 +219,7 @@ public sealed class YouTube
         var videos = new Dictionary<string, Video>();
         foreach (var title in titles)
         {
-            var query = work.Series ? $"{title} theme song" : $"{title} {work.Year} main theme soundtrack";
+            var query = work.Series ? $"{title} theme song" : work.Franchise ? $"{title} main theme soundtrack" : $"{title} {work.Year} main theme soundtrack";
             var flat = await Flat(query, JellyScoreConstants.SearchResultCount, ct);
             var shortlist = flat.Where(video => Matcher.Promising(work, video))
                 .Skip(nextPage ? JellyScoreConstants.SearchShortlistSize : 0).Take(JellyScoreConstants.SearchShortlistSize);
@@ -532,6 +533,17 @@ public static partial class Matcher
             album = lines[trackIndex + 1];
         var title = video.Title;
         var identityText = title + " " + album;
+        if (work.Franchise && work.Installments?.Any(name => Normal(name) != Normal(work.Title) &&
+            Contains(identityText, name)) == true)
+        { reason = "Theme belongs to a specific installment"; return null; }
+        if (work.Franchise && Years().Matches(identityText).Any(match => !Contains(work.Title, match.Value)))
+        { reason = "Theme belongs to a specific installment"; return null; }
+        if (work.Franchise && work.Installments?.Any(name => Normal(name) == Normal(work.Title)) == true &&
+            !Regex.IsMatch(Normal(identityText + " " + video.Description),
+                $@"\b{Regex.Escape(Normal(work.Title))} (?:film |movie )?(?:collection|franchise|series)\b"))
+        { reason = "No evidence of a shared franchise theme"; return null; }
+        if (work.Franchise && Regex.IsMatch(Normal(album), $@"^{Regex.Escape(Normal(work.Title))} (?:and|part|episode|chapter)\b"))
+        { reason = "Theme belongs to a specific installment"; return null; }
         if (Reject().IsMatch(title) || Reject().IsMatch(album) || EpisodeClip(title))
         { reason = "Cover, remix, sequel, or other excluded format"; return null; }
         if (Sequel().IsMatch(identityText) && !Sequel().IsMatch(work.Title))
@@ -539,6 +551,11 @@ public static partial class Matcher
         var workTitles = new[] { work.Title, work.OriginalTitle }.Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
         if (!workTitles.Any(s => Contains(identityText, s!) || Contains(video.Description, s!)))
         { reason = "Title or description does not identify this work"; return null; }
+        if (work.Franchise && !Regex.IsMatch(Normal(title),
+            $@"(?:^| ){Regex.Escape(Normal(work.Title))} (?:official |original |main |collection |film |movie |soundtrack |ost |score |music |song )*(?:theme|main title|opening|intro)\b") &&
+            Normal(album) != Normal(work.Title) && Normal(album) != Normal(work.Title) + " collection" &&
+            !Regex.IsMatch(Normal(video.Description), $@"\btheme (?:for|of) (?:the )?{Regex.Escape(Normal(work.Title))} (?:series|collection|franchise)\b"))
+        { reason = "No evidence of a shared franchise theme"; return null; }
         var linkedYear = LinkedYear(work, video.Description);
         if (work.Year is { } year && (video.ReleaseYear is { } releaseYear && releaseYear != year ||
             linkedYear is { } descriptionYear && descriptionYear != year ||
@@ -607,9 +624,9 @@ public static partial class Matcher
             "Duration is missing or outside the theme range" => "reasonDuration",
             "Cover, remix, sequel, or other excluded format" => "reasonExcludedFormat",
             "Soundtrack belongs to a different sequel" or "Different release year or adaptation" or "Upload predates this work" or
-                "Soundtrack belongs to a different film or series edition" or
+                 "Soundtrack belongs to a different film or series edition" or "Theme belongs to a specific installment" or
                 "Release year missing for an ambiguous title" => "reasonEdition",
-            "Title or description does not identify this work" or "Title names a different theme" => "reasonWrongWork",
+            "Title or description does not identify this work" or "Title names a different theme" or "No evidence of a shared franchise theme" => "reasonWrongWork",
             "Neither the title nor a matching soundtrack identifies this as music" => "reasonNotMusic",
             "Ranking score is too low" => "reasonLowScore",
             _ => "reasonNoMatch"
