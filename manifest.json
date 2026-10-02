@@ -9,6 +9,14 @@
     "owner": "edmogeor",
     "versions": [
       {
+        "changelog": "### Improved\n\n- Reject clearly labeled live performances before downloading, without rejecting film titles that contain “Live.” Keep excluded-format patterns together for easier review.\n- Pace consecutive yt-dlp searches and metadata checks as well as requests within each invocation. Retain the longer delay after downloads.\n\n",
+        "checksum": "0e258346277fecc02db8328494086d0c",
+        "sourceUrl": "https://github.com/edmogeor/jellyscore/releases/download/v0.1.28.0/JellyScore.zip",
+        "targetAbi": "12.0.0.0",
+        "timestamp": "2026-10-02T19:43:03Z",
+        "version": "0.1.28.0"
+      },
+      {
         "changelog": "### Improved\n\n- Keep the last scan's outcome and counts visible, with a bounded, scrollable list of timestamped skipped items and failures. Copy logged failure details from the admin page.\n- Verify ambiguous yearless TV themes against Jellyfin's TMDb searches before accepting them.\n- Estimate scan duration from separate timings for existing themes and new searches, without showing an unreliable ETA in the admin page.\n- Have `make up` prepare a local administrator and media libraries for manual scans, using the same setup as the end-to-end checks.\n\n",
         "checksum": "3964b094c5c4d9c234ab4273d4491473",
         "sourceUrl": "https://github.com/edmogeor/jellyscore/releases/download/v0.1.27.0/JellyScore.zip",
