@@ -135,9 +135,10 @@ public sealed class ScanStatus
         {
             if (!Running || Total <= Processed || Total == 0) return null;
             var knownRemaining = KnownTotal - KnownProcessed;
-            var otherRemaining = Total - KnownTotal - (Processed - KnownProcessed);
+            var otherProcessed = Processed - KnownProcessed;
+            var otherRemaining = Total - KnownTotal - otherProcessed;
             var known = Average(KnownSeconds, KnownProcessed, PriorKnownSecondsPerItem);
-            var other = Average(OtherSeconds, Processed - KnownProcessed, PriorOtherSecondsPerItem);
+            var other = Average(OtherSeconds, otherProcessed, PriorOtherSecondsPerItem);
             if (knownRemaining > 0 && known is null || otherRemaining > 0 && other is null) return null;
             var current = CurrentKnown ? known : other;
             var stalledFor = Math.Max(0, (DateTimeOffset.UtcNow - LastCompletedAt).TotalSeconds - (current ?? 0));

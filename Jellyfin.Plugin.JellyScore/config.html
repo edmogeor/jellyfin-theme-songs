@@ -810,6 +810,13 @@
           /\{(\d+)\}/g,
           (_, index) => values[index],
         );
+      const icon = (name) => {
+        const span = document.createElement("span");
+        span.className = "material-icons";
+        span.setAttribute("aria-hidden", "true");
+        span.textContent = name;
+        return span;
+      };
       const localize = () => {
         page.querySelectorAll("[data-i18n]").forEach((el) => {
           el.textContent = t(el.dataset.i18n);
@@ -1033,13 +1040,6 @@
           current,
           Math.ceil(total / 25),
         );
-        const icon = (name) => {
-          const span = document.createElement("span");
-          span.className = "material-icons";
-          span.setAttribute("aria-hidden", "true");
-          span.textContent = name;
-          return span;
-        };
         for (const item of data.Items) {
           const row = document.createElement("tr");
           const theme = document.createElement("td");
@@ -1269,10 +1269,7 @@
                 copy.type = "button";
                 copy.setAttribute("aria-label", t("copyError"));
                 copy.title = t("copyError");
-                const copyIcon = document.createElement("span");
-                copyIcon.className = "material-icons";
-                copyIcon.setAttribute("aria-hidden", "true");
-                copyIcon.textContent = "content_copy";
+                const copyIcon = icon("content_copy");
                 copy.append(copyIcon);
                 let resetCopyIcon;
                 copy.onclick = async () => {
