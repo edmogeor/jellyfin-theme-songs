@@ -1,3 +1,12 @@
+## [0.1.27.0]
+
+### Improved
+
+- Keep the last scan's outcome and counts visible, with a bounded, scrollable list of timestamped skipped items and failures. Copy logged failure details from the admin page.
+- Verify ambiguous yearless TV themes against Jellyfin's TMDb searches before accepting them.
+- Estimate scan duration from separate timings for existing themes and new searches, without showing an unreliable ETA in the admin page.
+- Have `make up` prepare a local administrator and media libraries for manual scans, using the same setup as the end-to-end checks.
+
 ## [0.1.26.0]
 
 ### Improved
