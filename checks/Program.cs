@@ -2,6 +2,7 @@ using Jellyfin.Plugin.JellyScore;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 var work = new Work("Dune", null, 2021, false);
 const string licensed = "Provided to YouTube by Warner Records\nDune Main Theme · Hans Zimmer\nAlbum: Dune 2021 (Original Motion Picture Soundtrack)";
@@ -303,6 +304,16 @@ check(measured.Loudness == -19.3 && Math.Abs(measured.TruePeak - -3.0) < 0.0001 
     "fast EBU R128 analysis measures loudness and conservatively caps true peak");
 check(Audio.Filter(4, 10) == "volume=4dB,afade=t=in:d=1,afade=t=out:st=9:d=1", "short track fades at both ends");
 check(Audio.Filter(-2, 120) == "volume=-2dB,afade=t=in:d=1,afade=t=out:st=119:d=1", "fade-out follows actual track duration");
+var ramp = new[] { -55, -45, -39, -34, -31, -28, -26, -24, -22, -21 };
+string frames(IEnumerable<int> values) => string.Join('\n', values.Select(v => $"lavfi.astats.Overall.RMS_level={v}"));
+check(Audio.ExistingFades(frames(ramp.Concat(Enumerable.Repeat(-21, 20)).Concat(ramp.Reverse()))) == (true, true),
+    "existing fades at both ends are detected");
+check(Audio.ExistingFades(frames(Enumerable.Repeat(-21, 40))) == (false, false) &&
+    Audio.ExistingFades(frames(new[] { -100, -21, -21, -21, -21, -21, -21, -21, -21, -21 }.Concat(Enumerable.Repeat(-21, 30)))) == (false, false),
+    "steady audio and a silent lead-in still receive fades");
+check(Audio.Filter(4, 10, false, true) == "volume=4dB,afade=t=out:st=9:d=1" &&
+    Audio.Filter(4, 10, true, false) == "volume=4dB,afade=t=in:d=1" &&
+    Audio.Filter(4, 10, false, false) == "volume=4dB", "only missing fades are applied");
 var scanEstimate = new ScanStatus { Running = true, Total = 12, StartedAt = DateTimeOffset.UtcNow };
 check(scanEstimate.RemainingSeconds is > 239 and < 241, "first scan has an ETA before any item completes");
 scanEstimate.StartedAt = DateTimeOffset.UtcNow.AddSeconds(-60);
@@ -316,6 +327,34 @@ var folder = Path.Combine(Path.GetTempPath(), "theme-songs-checks-" + Guid.NewGu
 Directory.CreateDirectory(folder);
 try
 {
+    async Task<double[]> levels(string file)
+    {
+        var output = await Audio.Run("ffmpeg", ["-hide_banner", "-nostats", "-i", file, "-af",
+            "aresample=48000,asetnsamples=n=4800:p=0,astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level", "-f", "null", "-"], CancellationToken.None);
+        return Regex.Matches(output, @"lavfi\.astats\.Overall\.RMS_level=(-?\d+(?:\.\d+)?)")
+            .Select(match => double.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+    }
+    foreach (var (fadeIn, fadeOut) in new[] { (false, false), (true, false), (false, true), (true, true) })
+    {
+        var name = $"{fadeIn}-{fadeOut}";
+        var source = Path.Combine(folder, name + ".wav");
+        var destination = Path.Combine(folder, name + ".mp3");
+        var filter = Audio.Filter(0, 12, fadeIn, fadeOut);
+        await Audio.Run("ffmpeg", ["-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=12",
+            "-af", filter, "-c:a", "pcm_s16le", source], CancellationToken.None);
+        await Audio.ConvertAudio(source, destination, "ffmpeg", 12, -26, CancellationToken.None);
+        var before = await levels(source);
+        var after = await levels(destination);
+        check(before.Length >= 100 && after.Length >= 100, "FFmpeg produced measurable audio windows");
+        var beforeIn = before[8] - before[0];
+        var afterIn = after[8] - after[0];
+        var beforeOut = before[^9] - before[^1];
+        var afterOut = after[^9] - after[^1];
+        check(fadeIn ? Math.Abs(afterIn - beforeIn) < 3 : afterIn > 15,
+            $"{name}: existing fade-in preserved or missing fade-in added");
+        check(fadeOut ? Math.Abs(afterOut - beforeOut) < 3 : afterOut > 15,
+            $"{name}: existing fade-out preserved or missing fade-out added");
+    }
     var binary = Path.Combine(folder, "yt-dlp", "test-binary");
     var bytes = System.Text.Encoding.UTF8.GetBytes("verified downloader");
     var hash = Convert.ToHexString(SHA256.HashData(bytes));

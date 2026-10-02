@@ -8,7 +8,7 @@ namespace Jellyfin.Plugin.JellyScore;
 
 public static class Audio
 {
-    internal static async Task<string> Run(string executable, string[] args, CancellationToken ct)
+    public static async Task<string> Run(string executable, string[] args, CancellationToken ct)
     {
         using var process = new Process();
         process.StartInfo = new ProcessStartInfo(executable) {
@@ -47,8 +47,31 @@ public static class Audio
         JellyScoreConstants.MaximumTruePeakDbtp - truePeak);
 
     // ReSharper disable once MemberCanBePrivate.Global
-    public static string Filter(double gain, double duration) =>
-        $"volume={gain.ToString("R", CultureInfo.InvariantCulture)}dB,afade=t=in:d={JellyScoreConstants.FadeSeconds},afade=t=out:st={Math.Max(0, duration - JellyScoreConstants.FadeSeconds).ToString("R", CultureInfo.InvariantCulture)}:d={JellyScoreConstants.FadeSeconds}";
+    public static string Filter(double gain, double duration, bool fadeIn = true, bool fadeOut = true) =>
+        $"volume={gain.ToString("R", CultureInfo.InvariantCulture)}dB" +
+        (fadeIn ? $",afade=t=in:d={JellyScoreConstants.FadeSeconds}" : "") +
+        (fadeOut ? $",afade=t=out:st={Math.Max(0, duration - JellyScoreConstants.FadeSeconds).ToString("R", CultureInfo.InvariantCulture)}:d={JellyScoreConstants.FadeSeconds}" : "");
+
+    // Compare 100 ms RMS windows at each edge with windows farther into the recording.
+    // A gradual rise or fall is required; a short silent lead-in alone is not a fade.
+    public static (bool FadeIn, bool FadeOut) ExistingFades(string output)
+    {
+        var levels = Regex.Matches(output, @"lavfi\.astats\.Overall\.RMS_level=(-?(?:\d+(?:\.\d+)?|inf))")
+            .Select(match => double.TryParse(match.Groups[1].Value, CultureInfo.InvariantCulture, out var level) && double.IsFinite(level) ? level : -100)
+            .ToArray();
+        if (levels.Length < 20) return (false, false);
+        return (levels[0] + 12 < levels[3] && levels[3] + 4 < levels[8],
+            levels[^1] + 12 < levels[^4] && levels[^4] + 4 < levels[^9]);
+    }
+
+    public static async Task ConvertAudio(string source, string destination, string ffmpeg, double duration, int targetLufs, CancellationToken ct)
+    {
+        var analysis = await Run(ffmpeg, ["-hide_banner", "-nostats", "-i", source, "-af",
+            "ebur128=peak=true:framelog=verbose,aresample=48000,asetnsamples=n=4800:p=0,astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level", "-f", "null", "-"], ct);
+        var (loudness, peak) = Stats(analysis);
+        var (fadeIn, fadeOut) = ExistingFades(analysis);
+        await Run(ffmpeg, ["-hide_banner", "-nostdin", "-y", "-i", source, "-vn", "-af", Filter(FixedGain(loudness, peak, targetLufs), duration, !fadeIn, !fadeOut), "-c:a", "libmp3lame", "-b:a", $"{JellyScoreConstants.Mp3BitrateKbps}k", "-f", "mp3", destination], ct);
+    }
 
     public static Task Convert(Choice choice, string destination, IMediaEncoder encoder, int targetLufs, CancellationToken ct, Action? onDownloaded = null) =>
         ConvertSource(destination, encoder, targetLufs, choice.Video.Seconds, (raw, token) => YouTube.Download(choice.Video.Id, raw, token), ct, onDownloaded);
@@ -71,9 +94,7 @@ public static class Audio
                     sourceDuration is < JellyScoreConstants.MinimumThemeSeconds or > JellyScoreConstants.MaximumThemeSeconds)
                 throw new IOException("Downloaded audio has no valid duration.");
             // Measure integrated loudness and true peak, then apply only a fixed gain to preserve dynamics.
-            var (loudness, peak) = Stats(await Run(encoder.EncoderPath, ["-hide_banner", "-nostats", "-i", raw, "-af",
-                "ebur128=peak=true:framelog=verbose", "-f", "null", "-"], ct));
-            await Run(encoder.EncoderPath, ["-hide_banner", "-nostdin", "-y", "-i", raw, "-vn", "-af", Filter(FixedGain(loudness, peak, targetLufs), sourceDuration), "-c:a", "libmp3lame", "-b:a", $"{JellyScoreConstants.Mp3BitrateKbps}k", "-f", "mp3", destination], ct);
+            await ConvertAudio(raw, destination, encoder.EncoderPath, sourceDuration, targetLufs, ct);
             if (!File.Exists(destination) || new FileInfo(destination).Length is 0 or > JellyScoreConstants.ConvertedAudioMaximumBytes) throw new IOException("Converted audio is empty or too large.");
             var probe = await Run(encoder.ProbePath, ["-v", "error", "-select_streams", "a:0", "-show_entries", "stream=codec_name:format=duration", "-of", "json", destination], ct);
             using var info = JsonDocument.Parse(probe);
