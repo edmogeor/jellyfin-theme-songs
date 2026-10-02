@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using System.Runtime.CompilerServices;
 using Jellyfin.Data.Enums;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Collections;
@@ -8,6 +9,8 @@ using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+
+[assembly: InternalsVisibleTo("checks")]
 
 namespace Jellyfin.Plugin.JellyScore;
 
@@ -99,7 +102,13 @@ public sealed class ScanStatus
     public Guid RunId { get; set; }
     public DateTimeOffset StartedAt { get; set; }
     internal DateTimeOffset LastCompletedAt { get; set; }
-    internal double PriorSecondsPerItem { get; init; } = JellyScoreConstants.ScanInitialSecondsPerItem;
+    internal double? PriorKnownSecondsPerItem { get; init; }
+    internal double? PriorOtherSecondsPerItem { get; init; }
+    internal int KnownTotal { get; set; }
+    internal int KnownProcessed { get; set; }
+    internal double KnownSeconds { get; set; }
+    internal double OtherSeconds { get; set; }
+    internal bool CurrentKnown { get; set; }
     public bool Running { get; set; }
     public bool Cancelled { get; set; }
     public string? CurrentItem { get; set; }
@@ -123,13 +132,20 @@ public sealed class ScanStatus
         get
         {
             if (!Running || Total <= Processed || Total == 0) return null;
-            var completedAt = LastCompletedAt > StartedAt ? LastCompletedAt : StartedAt;
-            var secondsPerItem = ((completedAt - StartedAt).TotalSeconds + JellyScoreConstants.ScanPriorItems * PriorSecondsPerItem) /
-                (Processed + JellyScoreConstants.ScanPriorItems);
-            var stalledFor = Math.Max(0, (DateTimeOffset.UtcNow - completedAt).TotalSeconds - secondsPerItem);
-            return (Total - Processed) * secondsPerItem + stalledFor;
+            var knownRemaining = KnownTotal - KnownProcessed;
+            var otherRemaining = Total - KnownTotal - (Processed - KnownProcessed);
+            var known = Average(KnownSeconds, KnownProcessed, PriorKnownSecondsPerItem);
+            var other = Average(OtherSeconds, Processed - KnownProcessed, PriorOtherSecondsPerItem);
+            if (knownRemaining > 0 && known is null || otherRemaining > 0 && other is null) return null;
+            var current = CurrentKnown ? known : other;
+            var stalledFor = Math.Max(0, (DateTimeOffset.UtcNow - LastCompletedAt).TotalSeconds - (current ?? 0));
+            return knownRemaining * (known ?? 0) + otherRemaining * (other ?? 0) + stalledFor;
         }
     }
+
+    private static double? Average(double seconds, int count, double? prior) => prior is > 0 and < JellyScoreConstants.ScanMaximumPriorSecondsPerItem
+        ? (seconds + JellyScoreConstants.ScanPriorItems * prior.Value) / (count + JellyScoreConstants.ScanPriorItems)
+        : count >= JellyScoreConstants.ScanPriorItems ? seconds / count : null;
 }
 // ReSharper restore UnusedAutoPropertyAccessor.Global
 
@@ -151,9 +167,9 @@ public sealed class ThemeScan(ILibraryManager library, ThemeService themes, Stor
 
     public async Task ExecuteAsync(IProgress<double> progress, CancellationToken ct)
     {
-        var prior = store.Read(s => s.ScanSecondsPerItem);
+        var (knownIds, knownPrior, otherPrior) = store.Read(s => (s.Themes.Keys.ToHashSet(), s.ScanKnownSecondsPerItem, s.ScanOtherSecondsPerItem));
         _status = new ScanStatus { RunId = Guid.NewGuid(), StartedAt = DateTimeOffset.UtcNow, Running = true,
-            PriorSecondsPerItem = prior is > 0 and < JellyScoreConstants.ScanMaximumPriorSecondsPerItem ? prior.Value : JellyScoreConstants.ScanInitialSecondsPerItem };
+            PriorKnownSecondsPerItem = knownPrior, PriorOtherSecondsPerItem = otherPrior };
         var status = _status;
         try
         {
@@ -161,55 +177,71 @@ public sealed class ThemeScan(ILibraryManager library, ThemeService themes, Stor
             var selected = Plugin.Instance.Configuration.SelectedLibraries(library);
             if (selected.Length == 0) { progress.Report(JellyScoreConstants.ProgressComplete); return; }
             var query = new InternalItemsQuery { IncludeItemTypes = [BaseItemKind.Movie, BaseItemKind.Series, BaseItemKind.BoxSet], AncestorIds = selected, Recursive = true };
-            status.Total = library.GetCount(query);
-            status.StartedAt = DateTimeOffset.UtcNow;
-            status.LastCompletedAt = status.StartedAt;
+            var items = new List<(Guid Id, string Name, bool Known)>();
             for (var offset = 0; ; offset += JellyScoreConstants.ScanBatchSize)
             {
                 ct.ThrowIfCancellationRequested();
                 query.StartIndex = offset;
                 query.Limit = JellyScoreConstants.ScanBatchSize;
                 var batch = library.GetItemList(query).ToArray();
-                if (batch.Length == 0) break;
-                foreach (var item in batch)
+                items.AddRange(batch.Select(item => (item.Id, item.Name, knownIds.Contains(item.Id))));
+                if (batch.Length < JellyScoreConstants.ScanBatchSize) break;
+            }
+            status.Total = items.Count;
+            status.KnownTotal = items.Count(item => item.Known);
+            status.StartedAt = DateTimeOffset.UtcNow;
+            status.LastCompletedAt = status.StartedAt;
+            foreach (var item in items)
+            {
+                ct.ThrowIfCancellationRequested();
+                lock (status)
                 {
-                    ct.ThrowIfCancellationRequested();
+                    status.CurrentKnown = item.Known;
+                    status.ActiveItems = [new ScanActiveItem(item.Name, "stagePreparing")];
+                    status.CurrentItem = item.Name;
+                }
+                try
+                {
+                    var result = await themes.Process(item.Id, false, ct, stage =>
+                    {
+                        lock (status) status.ActiveItems = [new ScanActiveItem(item.Name, stage)];
+                    });
                     lock (status)
                     {
-                        status.ActiveItems = [new ScanActiveItem(item.Name, "stagePreparing")];
-                        status.CurrentItem = item.Name;
-                    }
-                    try
-                    {
-                        var result = await themes.Process(item.Id, false, ct, stage =>
+                        if (result.Result == "Added") status.Added++;
+                        else if (result.Result == "Already themed") status.AlreadyThemed++;
+                        else if (result.Result == "Previously used recording excluded") status.Excluded++;
+                        else status.NoMatch++;
+                        if (result.ReasonCode is { } code)
                         {
-                            lock (status) status.ActiveItems = [new ScanActiveItem(item.Name, stage)];
-                        });
-                        lock (status)
-                        {
-                            if (result.Result == "Added") status.Added++;
-                            else if (result.Result == "Already themed") status.AlreadyThemed++;
-                            else if (result.Result == "Previously used recording excluded") status.Excluded++;
-                            else status.NoMatch++;
-                            if (result.ReasonCode is { } code)
-                            {
-                                status.Rejections = [.. status.Rejections.TakeLast(JellyScoreConstants.ScanRecentRejections - 1), new ScanRejection(item.Name, code)];
-                                logger.LogDebug("Skipped {ItemId}: {Reason}", item.Id, themes.Outcome(item.Id));
-                            }
+                            status.Rejections = [.. status.Rejections.TakeLast(JellyScoreConstants.ScanRecentRejections - 1), new ScanRejection(item.Name, code)];
+                            logger.LogDebug("Skipped {ItemId}: {Reason}", item.Id, themes.Outcome(item.Id));
                         }
                     }
-                    catch (InvalidOperationException) { lock (status) status.Unsupported++; }
-                    catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-                    catch (RateLimitFailure e) { logger.LogWarning("Theme scan paused: {Message}", e.Message); throw; }
-                    catch (Exception e) { lock (status) status.Failed++; logger.LogWarning("Theme scan failed for {ItemId}: {Message}", item.Id, e.Message); }
-                    finally { lock (status) { status.ActiveItems = []; status.CurrentItem = null; } }
-                    lock (status) { status.Processed++; status.LastCompletedAt = DateTimeOffset.UtcNow; progress.Report((double)JellyScoreConstants.ProgressComplete * status.Processed / Math.Max(1, status.Total)); }
                 }
-                if (batch.Length < JellyScoreConstants.ScanBatchSize) break;
+                catch (InvalidOperationException) { lock (status) status.Unsupported++; }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+                catch (RateLimitFailure e) { logger.LogWarning("Theme scan paused: {Message}", e.Message); throw; }
+                catch (Exception e) { lock (status) status.Failed++; logger.LogWarning("Theme scan failed for {ItemId}: {Message}", item.Id, e.Message); }
+                finally { lock (status) { status.ActiveItems = []; status.CurrentItem = null; } }
+                lock (status)
+                {
+                    var completedAt = DateTimeOffset.UtcNow;
+                    if (item.Known) { status.KnownProcessed++; status.KnownSeconds += (completedAt - status.LastCompletedAt).TotalSeconds; }
+                    else status.OtherSeconds += (completedAt - status.LastCompletedAt).TotalSeconds;
+                    status.Processed++;
+                    status.LastCompletedAt = completedAt;
+                    progress.Report((double)JellyScoreConstants.ProgressComplete * status.Processed / status.Total);
+                }
             }
             progress.Report(JellyScoreConstants.ProgressComplete);
             if (status.Processed > 0)
-                store.Change(s => s.ScanSecondsPerItem = (status.LastCompletedAt - status.StartedAt).TotalSeconds / status.Processed);
+                store.Change(s =>
+                {
+                    if (status.KnownProcessed > 0) s.ScanKnownSecondsPerItem = status.KnownSeconds / status.KnownProcessed;
+                    var otherProcessed = status.Processed - status.KnownProcessed;
+                    if (otherProcessed > 0) s.ScanOtherSecondsPerItem = status.OtherSeconds / otherProcessed;
+                });
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { status.Cancelled = true; throw; }
         finally { status.Running = false; status.CurrentItem = null; status.ActiveItems = []; }

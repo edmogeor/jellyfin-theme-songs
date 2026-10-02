@@ -349,10 +349,18 @@ check(Audio.ExistingFades(frames(Enumerable.Repeat(-21, 40))) == (false, false) 
 check(Audio.Filter(4, 10, false, true) == "volume=4dB,afade=t=out:st=9:d=1" &&
     Audio.Filter(4, 10, true, false) == "volume=4dB,afade=t=in:d=1" &&
     Audio.Filter(4, 10, false, false) == "volume=4dB", "only missing fades are applied");
-var scanEstimate = new ScanStatus { Running = true, Total = 12, StartedAt = DateTimeOffset.UtcNow };
-check(scanEstimate.RemainingSeconds is > 239 and < 241, "first scan has an ETA before any item completes");
-scanEstimate.StartedAt = DateTimeOffset.UtcNow.AddSeconds(-60);
-check(scanEstimate.RemainingSeconds is > 279 and < 282, "a slow item adds one overdue interval rather than inflating every remaining item");
+var scanEstimate = new ScanStatus { Running = true, Total = 18, KnownTotal = 9, LastCompletedAt = DateTimeOffset.UtcNow };
+check(scanEstimate.RemainingSeconds is null, "a first scan does not invent a time estimate without samples");
+scanEstimate.KnownProcessed = 3;
+scanEstimate.KnownSeconds = 6;
+scanEstimate.Processed = 3;
+check(scanEstimate.RemainingSeconds is null, "known theme timings cannot predict unsearched items");
+scanEstimate.Processed = 6;
+scanEstimate.OtherSeconds = 90;
+check(scanEstimate.RemainingSeconds is > 191 and < 193, "remaining known themes and searches use their own observed durations");
+scanEstimate.CurrentKnown = true;
+scanEstimate.LastCompletedAt = DateTimeOffset.UtcNow.AddSeconds(-12);
+check(scanEstimate.RemainingSeconds is > 201 and < 203, "an overdue item adds its excess time only once");
 scanEstimate.Running = false;
 check(scanEstimate.RemainingSeconds is null, "completed scans do not show an ETA");
 check(!File.Exists("dist/JellyScore.zip") || System.IO.Compression.ZipFile.OpenRead("dist/JellyScore.zip").Entries.Select(e => e.Name).Order().SequenceEqual(
