@@ -13,6 +13,8 @@ namespace Jellyfin.Plugin.JellyScore;
 [Authorize(Policy = "RequiresElevation")]
 public sealed class ThemeController(ThemeService themes, ThemeScan scan, ITaskManager tasks, ILibraryManager library) : ControllerBase
 {
+    private static readonly SemaphoreSlim RefreshGate = new(1, 1);
+
     [HttpGet("settings")]
     public object Settings() => new { Plugin.Instance.Configuration.Enabled, Plugin.Instance.Configuration.ScanOnLibraryRefresh,
         Plugin.Instance.Configuration.PreferFranchiseThemes,
@@ -101,9 +103,11 @@ public sealed class ThemeController(ThemeService themes, ThemeScan scan, ITaskMa
     [HttpPost("{id:guid}/refresh")]
     public async Task<IActionResult> Refresh(Guid id, CancellationToken ct)
     {
+        await RefreshGate.WaitAsync(ct);
         try { return Ok(new { (await themes.Process(id, true, ct)).Result }); }
         catch (InvalidOperationException e) { return Conflict(new { Error = e.Message, Code = ErrorCode(e, "refreshFailed") }); }
         catch (Exception e) when (e is IOException or SearchFailure) { return UnprocessableEntity(new { Error = e.Message, Code = ErrorCode(e, "refreshFailed") }); }
+        finally { RefreshGate.Release(); }
     }
 
     [HttpDelete("{id:guid}")]

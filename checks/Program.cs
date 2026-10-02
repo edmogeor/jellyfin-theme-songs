@@ -55,6 +55,13 @@ var dream = video("M-bWFbJlwXk", "Dream of Arrakis", "", 189) with
 check(YouTube.FirstTrack("DUNE Official Soundtrack\nTracklist:\n1. Dream of Arrakis\n2. Herald of the Change") == "Dream of Arrakis",
     "album tracklist supplies a generic search hint");
 check(Matcher.Promising(work, video("bbbbbbbbbbb", "Dune 2021 Main Theme", "", 120)), "flat theme is shortlisted");
+var flatCandidates = Enumerable.Range(0, 18).Select(i => video(i.ToString("D11"), "Dune 2021 Main Theme", "")).ToArray();
+var excludedUploads = new HashSet<string> { flatCandidates[0].Id, flatCandidates[3].Id };
+check(YouTube.Shortlist(work, flatCandidates, excludedUploads, false).Select(v => v.Id).SequenceEqual(
+        new[] { 1, 2, 4, 5, 6, 7, 8, 9 }.Select(i => flatCandidates[i].Id)) &&
+    YouTube.Shortlist(work, flatCandidates, excludedUploads, true).Select(v => v.Id).SequenceEqual(
+        Enumerable.Range(10, 8).Select(i => flatCandidates[i].Id)),
+    "excluded uploads do not use slots on either shortlist page");
 var shawshank = new Work("The Shawshank Redemption", null, 1994, false);
 var endTitle = new Video("Q2ctsooeJBU", "End Title", "End Title · Thomas Newman The Shawshank Redemption ℗ 1994 Epic Records", "Epic Soundtrax", 246,
     Album: "The Shawshank Redemption", Track: "End Title", Artist: "Thomas Newman", ReleaseYear: 1994);

@@ -1,4 +1,5 @@
 {
+  "queued": "Väntar på uppdatering…",
   "scanInProgress": "Skanning pågår",
   "scanCompleted": "Senaste skanningen slutförd",
   "scanCancelled": "Senaste skanningen avbruten",

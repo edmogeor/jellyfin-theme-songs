@@ -1,4 +1,5 @@
 {
+  "queued": "En attente d'actualisation…",
   "scanInProgress": "Analyse en cours",
   "scanCompleted": "Dernière analyse terminée",
   "scanCancelled": "Dernière analyse annulée",

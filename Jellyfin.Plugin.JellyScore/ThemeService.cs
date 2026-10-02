@@ -304,11 +304,11 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
             var editionChecked = false;
             if (preferFranchise)
             {
-                videos = await youtube.Search(franchise!, ct);
+                videos = await youtube.Search(franchise!, excludedIds, ct);
                 choice = Matcher.Select(franchise!, videos, excludedIds, excludedRecordings, minimumMatchStrength);
                 if (choice is null)
                 {
-                    videos = videos.Concat(await youtube.Search(franchise!, ct, nextPage: true)).DistinctBy(video => video.Id).ToArray();
+                    videos = videos.Concat(await youtube.Search(franchise!, excludedIds, ct, nextPage: true)).DistinctBy(video => video.Id).ToArray();
                     choice = Matcher.Select(franchise!, videos, excludedIds, excludedRecordings, minimumMatchStrength);
                 }
                 if (choice is not null) work = franchise!;
@@ -319,19 +319,19 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
                 store.Change(s => s.Outcomes[id] = "No match found: " + reason);
                 return new("No match found", code);
             }
-            if (choice is null) videos = await youtube.Search(work, ct);
+            if (choice is null) videos = await youtube.Search(work, excludedIds, ct);
             var (selectedWork, filmChoice, checkedFilmEdition) = choice is null ? await Select(work, videos, false) : (work, choice, false);
             choice = filmChoice;
             editionChecked = checkedFilmEdition;
             work = selectedWork;
             if (choice is null)
             {
-                videos = videos.Concat(await youtube.Search(work, ct, nextPage: true)).DistinctBy(video => video.Id).ToArray();
+                videos = videos.Concat(await youtube.Search(work, excludedIds, ct, nextPage: true)).DistinctBy(video => video.Id).ToArray();
                 (work, choice, editionChecked) = await Select(work, videos, editionChecked);
             }
             if (choice is null)
             {
-                videos = videos.Concat(await youtube.SearchAlbumTrack(work, ct)).DistinctBy(video => video.Id).ToArray();
+                videos = videos.Concat(await youtube.SearchAlbumTrack(work, excludedIds, ct)).DistinctBy(video => video.Id).ToArray();
                 (work, choice, _) = await Select(work, videos, editionChecked);
             }
             if (choice is null)

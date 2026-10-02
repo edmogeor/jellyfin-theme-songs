@@ -1,4 +1,5 @@
 {
+  "queued": "更新待ち…",
   "scanInProgress": "スキャン中",
   "scanCompleted": "前回のスキャンが完了しました",
   "scanCancelled": "前回のスキャンはキャンセルされました",

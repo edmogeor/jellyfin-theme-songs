@@ -1,4 +1,5 @@
 {
+  "queued": "等待刷新…",
   "scanInProgress": "正在扫描",
   "scanCompleted": "上次扫描已完成",
   "scanCancelled": "上次扫描已取消",

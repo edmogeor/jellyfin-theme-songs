@@ -212,7 +212,11 @@ public sealed class YouTube
         }
     }
 
-    public async Task<IReadOnlyList<Video>> Search(Work work, CancellationToken ct, bool nextPage = false)
+    internal static IEnumerable<Video> Shortlist(Work work, IEnumerable<Video> flat, IReadOnlySet<string> excludedIds, bool nextPage) =>
+        flat.Where(video => !excludedIds.Contains(video.Id) && Matcher.Promising(work, video))
+            .Skip(nextPage ? JellyScoreConstants.SearchShortlistSize : 0).Take(JellyScoreConstants.SearchShortlistSize);
+
+    public async Task<IReadOnlyList<Video>> Search(Work work, IReadOnlySet<string> excludedIds, CancellationToken ct, bool nextPage = false)
     {
         var titles = new[] { work.Title, work.OriginalTitle }.Where(x => !string.IsNullOrWhiteSpace(x))
             .Distinct(StringComparer.OrdinalIgnoreCase);
@@ -221,14 +225,13 @@ public sealed class YouTube
         {
             var query = work.Series ? $"{title} theme song" : work.Franchise ? $"{title} main theme soundtrack" : $"{title} {work.Year} main theme soundtrack";
             var flat = await Flat(query, JellyScoreConstants.SearchResultCount, ct);
-            var shortlist = flat.Where(video => Matcher.Promising(work, video))
-                .Skip(nextPage ? JellyScoreConstants.SearchShortlistSize : 0).Take(JellyScoreConstants.SearchShortlistSize);
+            var shortlist = Shortlist(work, flat, excludedIds, nextPage);
             foreach (var video in await Details(shortlist, ct)) videos[video.Id] = video;
         }
         return videos.Values.ToArray();
     }
 
-    public async Task<IReadOnlyList<Video>> SearchAlbumTrack(Work work, CancellationToken ct)
+    public async Task<IReadOnlyList<Video>> SearchAlbumTrack(Work work, IReadOnlySet<string> excludedIds, CancellationToken ct)
     {
         var query = $"{work.Title} {work.Year} soundtrack album";
         var flat = await Flat(query, JellyScoreConstants.AlbumSearchResultCount, ct);
@@ -242,8 +245,8 @@ public sealed class YouTube
         if (firstTrack is null) return [];
         var soundtrack = work.Series ? "TV soundtrack" : "Original Motion Picture Soundtrack";
         var tracks = await Flat($"{firstTrack} {work.Title} {soundtrack}", JellyScoreConstants.TrackSearchResultCount, ct);
-        return await Details(tracks.Where(video => Matcher.Promising(work, video) ||
-            video.Seconds is > 0 and <= JellyScoreConstants.MaximumThemeSeconds && video.Title.Contains(firstTrack, StringComparison.OrdinalIgnoreCase))
+        return await Details(tracks.Where(video => !excludedIds.Contains(video.Id) && (Matcher.Promising(work, video) ||
+            video.Seconds is > 0 and <= JellyScoreConstants.MaximumThemeSeconds && video.Title.Contains(firstTrack, StringComparison.OrdinalIgnoreCase)))
             .Take(JellyScoreConstants.AlbumTrackShortlistSize), ct);
     }
 

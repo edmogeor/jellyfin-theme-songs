@@ -70,6 +70,15 @@ jobs:
       - run: gh release view "$GITHUB_REF_NAME" >/dev/null || gh release create "$GITHUB_REF_NAME" dist/JellyScore.zip dist/plugin.md5 dist/build.yaml --notes-file dist/release-notes.md
         env:
           GH_TOKEN: ${{ github.token }}
+      - name: Wait for release in GitHub's release list
+        run: |
+          for attempt in {1..10}; do
+            if gh api "repos/$GITHUB_REPOSITORY/releases?per_page=5" --jq ".[] | select(.tag_name == \"$GITHUB_REF_NAME\") | .assets[] | select(.name == \"build.yaml\") | .name" | grep -Fxq build.yaml; then exit 0; fi
+            sleep 3
+          done
+          exit 1
+        env:
+          GH_TOKEN: ${{ github.token }}
       - uses: Kevinjil/jellyfin-plugin-repo-action@296850372cd569cbcc040e834222a5afed861485
         with:
           githubToken: ${{ github.token }}

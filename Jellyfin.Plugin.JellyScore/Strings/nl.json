@@ -1,4 +1,5 @@
 {
+  "queued": "Wacht op vernieuwen…",
   "scanInProgress": "Scan wordt uitgevoerd",
   "scanCompleted": "Laatste scan voltooid",
   "scanCancelled": "Laatste scan geannuleerd",

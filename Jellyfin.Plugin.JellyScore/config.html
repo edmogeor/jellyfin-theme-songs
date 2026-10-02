@@ -801,6 +801,10 @@
       let confirming = false;
       let lastScan = null;
       let lastIssuesKey = "";
+      const refreshingItems = new Set();
+      const refreshErrors = new Map();
+      let refreshQueue = Promise.resolve();
+      let activeRefreshItem = null;
       let savedSettings = "";
       let scanPollError = "";
       let visible = false;
@@ -864,7 +868,10 @@
         for (const button of page.querySelectorAll(
           "#themeRows button[data-theme-action]",
         )) {
-          const busy = button.closest("tr").dataset.busy === "true";
+          const row = button.closest("tr");
+          const busy =
+            row.dataset.busy === "true" ||
+            refreshingItems.has(row.dataset.itemId);
           button.disabled =
             scanRunning ||
             bulkBusy ||
@@ -1042,6 +1049,7 @@
         );
         for (const item of data.Items) {
           const row = document.createElement("tr");
+          row.dataset.itemId = item.ItemId;
           const theme = document.createElement("td");
           theme.className = "detailTableBodyCell";
           const heading = document.createElement("strong");
@@ -1062,6 +1070,10 @@
           error.setAttribute("role", "alert");
           const errorText = document.createElement("span");
           error.append(icon("error_outline"), errorText);
+          if (refreshErrors.has(item.ItemId)) {
+            errorText.textContent = refreshErrors.get(item.ItemId);
+            error.hidden = false;
+          }
           const showRowError = (e) => {
             if (!silent(e)) {
               errorText.textContent = userError(e);
@@ -1073,6 +1085,13 @@
           busy.hidden = true;
           const busyText = document.createElement("span");
           busy.append(icon("sync"), busyText);
+          if (refreshingItems.has(item.ItemId)) {
+            row.dataset.busy = "true";
+            busy.hidden = false;
+            busyText.textContent = t(
+              activeRefreshItem === item.ItemId ? "refreshing" : "queued",
+            );
+          }
           const setBusy = (text) => {
             row.dataset.busy = String(Boolean(text));
             busy.hidden = !text;
@@ -1099,29 +1118,46 @@
           refresh.setAttribute("aria-label", t("refreshThemeFor", item.Name));
           refresh.dataset.themeAction = t("refreshTheme");
           refresh.dataset.requiresDownloader = "true";
-          refresh.onclick = async () => {
-            if (downloaderFailed || row.dataset.busy === "true") return;
-            setBusy(t("refreshing"));
+          refresh.onclick = () => {
+            if (
+              downloaderFailed ||
+              row.dataset.busy === "true" ||
+              refreshingItems.has(item.ItemId)
+            )
+              return;
+            refreshingItems.add(item.ItemId);
+            refreshErrors.delete(item.ItemId);
+            setBusy(t(refreshingItems.size === 1 ? "refreshing" : "queued"));
             error.hidden = true;
-            try {
-              const result = (
-                await request(item.ItemId + "/refresh", { method: "POST" })
-              ).Result;
-              toast(
-                t(
-                  {
-                    Replaced: "replaced",
-                    "No replacement found": "noReplacement",
-                    "Already themed": "alreadyThemed",
-                  }[result] || "requestFailed",
-                ),
-              );
-              await load(rows);
-            } catch (e) {
-              showRowError(e);
-            } finally {
-              setBusy("");
-            }
+            const run = async () => {
+              activeRefreshItem = item.ItemId;
+              setBusy(t("refreshing"));
+              try {
+                const result = (
+                  await request(item.ItemId + "/refresh", { method: "POST" })
+                ).Result;
+                toast(
+                  t(
+                    {
+                      Replaced: "replaced",
+                      "No replacement found": "noReplacement",
+                      "Already themed": "alreadyThemed",
+                    }[result] || "requestFailed",
+                  ),
+                );
+              } catch (e) {
+                const message = userError(e);
+                refreshErrors.set(item.ItemId, message);
+                errorText.textContent = message;
+                error.hidden = false;
+              } finally {
+                activeRefreshItem = null;
+                refreshingItems.delete(item.ItemId);
+                setBusy("");
+                await load(rows);
+              }
+            };
+            refreshQueue = refreshQueue.then(run, run);
           };
           const remove = document.createElement("button", "emby-button");
           remove.className = "emby-button";
@@ -1137,6 +1173,7 @@
             error.hidden = true;
             try {
               await request(item.ItemId, { method: "DELETE" });
+              refreshErrors.delete(item.ItemId);
               row.remove();
               await load(rows);
             } catch (e) {

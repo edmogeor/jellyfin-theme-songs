@@ -1,4 +1,5 @@
 {
+  "queued": "Oczekuje na odświeżenie…",
   "scanInProgress": "Trwa skanowanie",
   "scanCompleted": "Ostatnie skanowanie zakończone",
   "scanCancelled": "Ostatnie skanowanie anulowane",

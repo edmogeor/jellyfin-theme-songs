@@ -1,4 +1,5 @@
 {
+  "queued": "Zur Aktualisierung vorgemerkt…",
   "scanInProgress": "Scan läuft",
   "scanCompleted": "Letzter Scan abgeschlossen",
   "scanCancelled": "Letzter Scan abgebrochen",

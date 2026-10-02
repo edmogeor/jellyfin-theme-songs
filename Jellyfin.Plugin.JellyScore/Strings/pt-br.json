@@ -1,4 +1,5 @@
 {
+  "queued": "Aguardando atualização…",
   "scanInProgress": "Varredura em andamento",
   "scanCompleted": "Última varredura concluída",
   "scanCancelled": "Última varredura cancelada",
