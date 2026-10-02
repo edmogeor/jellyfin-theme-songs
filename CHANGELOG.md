@@ -1,3 +1,10 @@
+## [0.1.28.0]
+
+### Improved
+
+- Reject clearly labeled live performances before downloading, without rejecting film titles that contain “Live.” Keep excluded-format patterns together for easier review.
+- Pace consecutive yt-dlp searches and metadata checks as well as requests within each invocation. Retain the longer delay after downloads.
+
 ## [0.1.27.0]
 
 ### Improved
