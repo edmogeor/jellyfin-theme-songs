@@ -448,18 +448,10 @@
             type="checkbox"
             name="preferFranchiseThemes"
             is="emby-checkbox"
-            aria-describedby="franchiseHelp"
           /><span data-i18n="preferFranchiseThemes"
             >{{preferFranchiseThemes}}</span
           ></label
         >
-        <div
-          id="franchiseHelp"
-          class="fieldDescription"
-          data-i18n="franchiseHelp"
-        >
-          {{franchiseHelp}}
-        </div>
       </div>
       <div class="inputContainer themeStrengthOption">
         <label
@@ -510,30 +502,6 @@
           {{themeVolumeHelp}}
         </div>
       </div>
-      <div class="inputContainer themeCookieOption">
-        <label for="themeCookies" class="inputLabel" data-i18n="cookiesLabel"
-          >{{cookiesLabel}}</label
-        >
-        <textarea
-          id="themeCookies"
-          name="youTubeCookies"
-          class="emby-input"
-          rows="4"
-          spellcheck="false"
-          autocomplete="off"
-          aria-describedby="themeCookiesHelp"
-        ></textarea>
-        <div id="themeCookiesHelp" class="fieldDescription">
-          <span data-i18n="cookiesHelp">{{cookiesHelp}}</span>
-          <a
-            href="https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies"
-            target="_blank"
-            rel="noopener noreferrer"
-            data-i18n="cookiesGuide"
-            >{{cookiesGuide}}</a
-          >
-        </div>
-      </div>
       <div class="inputContainer themeTvSourceOption">
         <label
           for="themeTvSource"
@@ -557,6 +525,30 @@
           data-i18n="tvThemeSourceHelp"
         >
           {{tvThemeSourceHelp}}
+        </div>
+      </div>
+      <div class="inputContainer themeCookieOption">
+        <label for="themeCookies" class="inputLabel" data-i18n="cookiesLabel"
+          >{{cookiesLabel}}</label
+        >
+        <textarea
+          id="themeCookies"
+          name="youTubeCookies"
+          class="emby-input"
+          rows="4"
+          spellcheck="false"
+          autocomplete="off"
+          aria-describedby="themeCookiesHelp"
+        ></textarea>
+        <div id="themeCookiesHelp" class="fieldDescription">
+          <span data-i18n="cookiesHelp">{{cookiesHelp}}</span>
+          <a
+            href="https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-i18n="cookiesGuide"
+            >{{cookiesGuide}}</a
+          >
         </div>
       </div>
       <button

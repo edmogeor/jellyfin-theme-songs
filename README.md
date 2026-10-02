@@ -19,7 +19,7 @@ JellyScore automatically downloads theme music from YouTube for your movies and 
 
 - Check new items automatically and search selected libraries after Jellyfin scans them. Run a scan yourself whenever you want.
 - Check each recording's title, release year, soundtrack details, and length. Download the clearest match and skip uncertain results or existing theme music.
-- Optionally prefer a shared franchise theme for movies identified by TMDb, even without a Jellyfin collection. Select the Collections library to add themes to matching Jellyfin collections independently of that movie preference.
+- Optionally prefer a franchise theme for movies in TMDb collections, even without a Jellyfin collection. Select the Collections library to add themes to matching Jellyfin collections independently of that movie preference.
 - Follow scan progress and refresh or delete downloads from Jellyfin.
 - Localized JellyScore configuration page: Danish, German, English (US), Spanish, Finnish, French, Italian, Japanese, Korean, Norwegian Bokmal, Dutch, Polish, Portuguese (Brazil), Russian, Swedish, and Chinese (Simplified).
 
@@ -34,6 +34,8 @@ JellyScore automatically downloads theme music from YouTube for your movies and 
 2. Install **JellyScore** from the plugin catalog and restart Jellyfin.
 3. Open JellyScore. All libraries are selected by default, but you can choose which to include, independently control processing new items and scanning after Jellyfin library scans, or set a minimum match strength (0–100). Higher values skip weaker matches. The default is 50.
 4. Select **Scan libraries** to search your existing items now. Installing the plugin does not start a scan.
+
+**TMDb metadata:** Franchise themes for movies and themes for matching Jellyfin collections require a TMDb collection name saved in the movie's Jellyfin metadata. If that name is missing, movies use the normal film-specific search and collection themes cannot be matched. Disabling the TMDb metadata provider also prevents JellyScore from using TMDb to verify some movie matches without a release year; those matches retain the year requirement. Previously saved collection names can still be used while they remain in Jellyfin metadata. The optional TV theme URL template uses a **TVDB ID**, not TMDb.
 
 Jellyfin needs permission to write to your media folders and plugin configuration directory. Each movie needs its own folder. On first use JellyScore downloads and verifies [yt-dlp](https://github.com/yt-dlp/yt-dlp) for your server's platform from its official releases. YouTube extraction also needs a JavaScript runtime: JellyScore uses a supported Deno or Node.js installation if available, or downloads and verifies Deno on supported platforms. GitHub must be reachable for these downloads, but you do not need an API key. Later searches reuse the cached tools.
 

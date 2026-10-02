@@ -1,3 +1,10 @@
+## [0.1.26.0]
+
+### Improved
+
+- Clarify the franchise-theme preference in every supported language and document its TMDb metadata requirements.
+- Place the TV theme URL template above YouTube cookies in the admin settings.
+
 ## [0.1.25.0]
 
 ### Added

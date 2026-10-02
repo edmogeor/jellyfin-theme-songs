@@ -184,13 +184,13 @@ for template in ("http://example.com/{tvdbId}.mp3", "https://127.0.0.1/{tvdbId}.
 status, strings = request("GET", "/ThemeSongs/strings/en-us", token=token)
 assert status == 200 and strings["scanLibraries"] == "Scan libraries", f"English translations: {status} {strings}"
 assert strings["automatic"] == "Automatically process new items" and strings["scanOnLibraryRefresh"] == "Scan after Jellyfin scans the media library"
-assert strings["preferFranchiseThemes"] and strings["franchiseHelp"], "franchise setting has English copy"
+assert strings["preferFranchiseThemes"] == "Prefer franchise themes for movies in TMDb collections", "franchise setting has English copy"
 english_strings = strings
 status, strings = request("GET", "/ThemeSongs/strings/fr", token=token)
 assert status == 200 and strings["scanLibraries"] == "Analyser les bibliothèques", f"French translations: {status} {strings}"
 assert strings["scanOnLibraryRefresh"], "French scan trigger translation missing"
 assert strings["cookiesLabel"] and strings["invalidCookies"], "French cookie settings translation missing"
-assert strings["preferFranchiseThemes"] and strings["franchiseHelp"], "French franchise setting translation missing"
+assert "TMDb" in strings["preferFranchiseThemes"], "French franchise setting translation missing"
 status, _ = request("GET", "/ThemeSongs/strings/zz", token=token)
 assert status == 404, f"unsupported translation should fall back to English: {status}"
 status, downloads = request("GET", "/ThemeSongs/downloads", token=token)
