@@ -1,3 +1,11 @@
+## [0.1.29.0]
+
+### Improved
+
+- Queue administrator refreshes across items and sessions, show waiting items in the admin page, and retain inline refresh errors after the list updates.
+- Exclude previously used video IDs before fetching metadata so they do not occupy any search or album-track shortlist slots.
+- Wait for GitHub's new release listing before regenerating the plugin repository manifest.
+
 ## [0.1.28.0]
 
 ### Improved
