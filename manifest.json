@@ -9,6 +9,14 @@
     "owner": "edmogeor",
     "versions": [
       {
+        "changelog": "### Improved\n\n- Clarify the franchise-theme preference in every supported language and document its TMDb metadata requirements.\n- Place the TV theme URL template above YouTube cookies in the admin settings.\n\n",
+        "checksum": "4b64c887c914716460cdf06c1c3edfe9",
+        "sourceUrl": "https://github.com/edmogeor/jellyscore/releases/download/v0.1.26.0/JellyScore.zip",
+        "targetAbi": "12.0.0.0",
+        "timestamp": "2026-10-02T13:50:25Z",
+        "version": "0.1.26.0"
+      },
+      {
         "changelog": "### Added\n\n- Optionally prefer shared franchise themes for movies using Jellyfin's TMDb collection metadata, even without a Jellyfin collection. Fall back to film-specific themes when no shared recording qualifies.\n- Add managed themes to selected Jellyfin collections independently of the movie preference. Show the Collections library option only when collections exist.\n\n### Improved\n\n- Preserve existing fades in downloaded audio instead of applying another fade at the same end.\n- Allow Docker smoke checks to reach Jellyfin through its container when the published host port is unavailable.\n\n",
         "checksum": "9772198a5fcfc82b4fe28e0c776f4faa",
         "sourceUrl": "https://github.com/edmogeor/jellyscore/releases/download/v0.1.25.0/JellyScore.zip",
