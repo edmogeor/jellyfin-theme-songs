@@ -102,13 +102,17 @@ def scan_until(token, expected=None, expect_current=False):
             saw_current |= "Sorcerer" in field(progress, "currentItem")
         if status == 200 and not field(progress, "running") and field(progress, "runId") != field(before, "runId"):
             assert field(progress, "processed") == field(progress, "total") == 4, f"scan did not process all items: {progress}"
+            assert field(progress, "finishedAt") and not field(progress, "cancelled") and not field(progress, "stoppedReason"), (
+                f"scan did not report successful completion: {progress}"
+            )
             counts = ("added", "alreadyThemed", "excluded", "noMatch", "unsupported", "failed")
             assert sum(field(progress, key) for key in counts) == 4, f"scan counts disagree: {progress}"
             if field(progress, "excluded") + field(progress, "noMatch"):
-                assert field(progress, "rejections") and all(
-                    field(item, "name") and field(item, "code") in english_strings for item in field(progress, "rejections")
+                assert any(
+                    field(item, "name") and field(item, "code") in english_strings and field(item, "at") and
+                    field(item, "failed") is False and not field(item, "diagnostic") for item in field(progress, "issues")
                 ), (
-                    f"scan omitted rejection reasons: {progress}"
+                    f"scan omitted timestamped skipped items: {progress}"
                 )
             assert not expected or field(progress, expected) >= 1, f"Rescan finished without {expected}: {progress}"
             assert not expect_current or saw_current, f"scan never exposed current item: {progress}"

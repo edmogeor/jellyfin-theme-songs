@@ -97,7 +97,7 @@ internal static class JellyScoreConstants
     internal const int ScanPriorItems = 3;
     internal const int ScanMaximumPriorSecondsPerItem = 3600;
     internal const int ScanBatchSize = 100;
-    internal const int ScanRecentRejections = 5;
+    internal const int ScanRecentIssues = 50;
     internal const int ProgressComplete = 100;
     internal const int AdminPageSize = 25;
     internal const int ToolErrorMessageMaximumLength = 400;

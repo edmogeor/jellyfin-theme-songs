@@ -361,7 +361,7 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
                 }
                 finally { if (File.Exists(temporary)) File.Delete(temporary); }
             }
-            throw new InvalidOperationException("Download failed. No other match was available.");
+            throw new DownloadFailure("Download failed. No other match was available.");
         }
         finally { gate.Release(); }
     }

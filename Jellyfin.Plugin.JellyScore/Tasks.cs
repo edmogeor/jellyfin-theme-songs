@@ -111,6 +111,8 @@ public sealed class ScanStatus
     internal bool CurrentKnown { get; set; }
     public bool Running { get; set; }
     public bool Cancelled { get; set; }
+    public string? StoppedReason { get; set; }
+    public DateTimeOffset? FinishedAt { get; set; }
     public string? CurrentItem { get; set; }
     public ScanActiveItem[] ActiveItems { get; set; } = [];
     public int Processed { get; set; }
@@ -119,7 +121,7 @@ public sealed class ScanStatus
     public int AlreadyThemed { get; set; }
     public int Excluded { get; set; }
     public int NoMatch { get; set; }
-    public ScanRejection[] Rejections { get; set; } = [];
+    public ScanIssue[] Issues { get; set; } = [];
     public int Unsupported { get; set; }
     public int Failed { get; set; }
     // ReSharper disable once UnusedMember.Global
@@ -150,7 +152,7 @@ public sealed class ScanStatus
 // ReSharper restore UnusedAutoPropertyAccessor.Global
 
 // ReSharper disable NotAccessedPositionalProperty.Global
-public sealed record ScanRejection(string Name, string Code);
+public sealed record ScanIssue(string Name, string Code, bool Failed, DateTimeOffset At, string? Diagnostic);
 public sealed record ScanActiveItem(string Name, string Stage);
 // ReSharper restore NotAccessedPositionalProperty.Global
 
@@ -214,15 +216,46 @@ public sealed class ThemeScan(ILibraryManager library, ThemeService themes, Stor
                         else status.NoMatch++;
                         if (result.ReasonCode is { } code)
                         {
-                            status.Rejections = [.. status.Rejections.TakeLast(JellyScoreConstants.ScanRecentRejections - 1), new ScanRejection(item.Name, code)];
+                            AddIssue(status, new ScanIssue(item.Name, code, false, DateTimeOffset.UtcNow, null));
                             logger.LogDebug("Skipped {ItemId}: {Reason}", item.Id, themes.Outcome(item.Id));
                         }
                     }
                 }
-                catch (InvalidOperationException) { lock (status) status.Unsupported++; }
+                catch (InvalidOperationException)
+                {
+                    lock (status)
+                    {
+                        status.Unsupported++;
+                        AddIssue(status, new ScanIssue(item.Name, "scanUnsupported", false, DateTimeOffset.UtcNow, null));
+                    }
+                }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-                catch (RateLimitFailure e) { logger.LogWarning("Theme scan paused: {Message}", e.Message); throw; }
-                catch (Exception e) { lock (status) status.Failed++; logger.LogWarning("Theme scan failed for {ItemId}: {Message}", item.Id, e.Message); }
+                catch (RateLimitFailure e)
+                {
+                    var diagnostic = $"Theme scan paused: {e.Message}";
+                    lock (status)
+                    {
+                        status.StoppedReason = "scanRateLimited";
+                        AddIssue(status, new ScanIssue(item.Name, "scanRateLimited", true, DateTimeOffset.UtcNow, diagnostic));
+                    }
+                    logger.LogWarning("Theme scan paused: {Message}", e.Message);
+                    throw;
+                }
+                catch (Exception e)
+                {
+                    var diagnostic = $"Theme scan failed for {item.Id}: {e.Message}";
+                    lock (status)
+                    {
+                        status.Failed++;
+                        AddIssue(status, new ScanIssue(item.Name, e switch
+                        {
+                            SearchFailure => "searchFailed",
+                            DownloadFailure => "downloadFailed",
+                            _ => "scanItemFailed"
+                        }, true, DateTimeOffset.UtcNow, diagnostic));
+                    }
+                    logger.LogWarning("Theme scan failed for {ItemId}: {Message}", item.Id, e.Message);
+                }
                 finally { lock (status) { status.ActiveItems = []; status.CurrentItem = null; } }
                 lock (status)
                 {
@@ -244,6 +277,10 @@ public sealed class ThemeScan(ILibraryManager library, ThemeService themes, Stor
                 });
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { status.Cancelled = true; throw; }
-        finally { status.Running = false; status.CurrentItem = null; status.ActiveItems = []; }
+        catch (Exception) { status.StoppedReason ??= "scanStopped"; throw; }
+        finally { status.Running = false; status.FinishedAt = DateTimeOffset.UtcNow; status.CurrentItem = null; status.ActiveItems = []; }
     }
+
+    private static void AddIssue(ScanStatus status, ScanIssue issue) =>
+        status.Issues = [.. status.Issues.TakeLast(JellyScoreConstants.ScanRecentIssues - 1), issue];
 }

@@ -207,6 +207,67 @@
     #themeSongsPage #themeScanPanel #themeScanDetails {
       margin: 0.75rem 0 0;
     }
+    #themeSongsPage #themeScanState {
+      margin: 0 0 0.75rem;
+      font-weight: 600;
+    }
+    #themeSongsPage #themeScanDates {
+      color: var(--jf-palette-text-secondary);
+      margin: 0.5rem 0;
+    }
+    #themeSongsPage #themeIssues {
+      max-height: 18rem;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      margin-top: 1rem;
+    }
+    #themeSongsPage #themeIssues h4 {
+      margin: 0 0 0.5rem;
+    }
+    #themeSongsPage #themeIssues ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    #themeSongsPage .themeIssue {
+      padding: 0.75rem;
+      border-bottom: 1px solid var(--jf-palette-divider);
+      overflow-wrap: anywhere;
+    }
+    #themeSongsPage .themeIssue:last-child {
+      border-bottom: 0;
+    }
+    #themeSongsPage .themeIssueFailed {
+      background: color-mix(
+        in srgb,
+        var(--jf-palette-error-main) 10%,
+        transparent
+      );
+    }
+    #themeSongsPage .themeIssueHeader {
+      display: flex;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 0.25rem 0.75rem;
+    }
+    #themeSongsPage .themeIssueHeader time {
+      margin-left: auto;
+      color: var(--jf-palette-text-secondary);
+      font-size: 0.875rem;
+    }
+    #themeSongsPage .themeIssueKind {
+      color: var(--jf-palette-text-secondary);
+    }
+    #themeSongsPage .themeIssueFailed .themeIssueKind {
+      color: var(--jf-palette-error-main);
+      font-weight: 700;
+    }
+    #themeSongsPage .themeIssue p {
+      margin: 0.25rem 0 0;
+    }
+    #themeSongsPage .themeIssue button {
+      margin: 0.5rem 0 0;
+    }
     #themeSongsPage #themeScanCancel {
       margin-top: 1rem;
       background: var(--jf-palette-error-main);
@@ -573,6 +634,7 @@
         {{scanLibraries}}
       </button>
       <div id="themeScanPanel" hidden>
+        <p id="themeScanState"></p>
         <div class="themeProgressLabel">
           <span class="material-icons" aria-hidden="true">sync</span>
           <p id="themeProgress" role="status" aria-live="polite"></p>
@@ -584,8 +646,9 @@
           max="100"
           value="0"
         ></progress>
+        <p id="themeScanDates" hidden></p>
         <p id="themeScanDetails" hidden></p>
-        <div id="themeRejections"></div>
+        <div id="themeIssues" hidden></div>
         <button
           is="emby-button"
           id="themeScanCancel"
@@ -693,6 +756,7 @@
       let downloaderFailureCode = "downloaderInstallFailed";
       let confirming = false;
       let lastScan = null;
+      let lastIssuesKey = "";
       let savedSettings = "";
       let scanPollError = "";
       let visible = false;
@@ -1068,24 +1132,30 @@
         $("#themeScanStart").hidden = data.Running;
         $("#themeScanCancel").disabled = !data.Running;
         $("#themeScanCancel").hidden = !data.Running;
-        $("#themeScanPanel").hidden = !data.Running;
+        $("#themeScanPanel").hidden = !data.Running && !data.FinishedAt;
+        $("#themeScanState").textContent = data.Running
+          ? t("scanInProgress")
+          : t(
+              data.Cancelled
+                ? "scanCancelled"
+                : data.StoppedReason || "scanCompleted",
+            );
+        $("#themeProgress").parentElement.hidden = !data.Running;
+        $("#themeScanDates").hidden = data.Running;
+        $("#themeScanDates").textContent = data.FinishedAt
+          ? t(
+              "lastScanDates",
+              new Date(data.StartedAt).toLocaleString(),
+              new Date(data.FinishedAt).toLocaleString(),
+            )
+          : "";
         const bar = $("#themeScanBar");
-        bar.hidden = !data.Running && !data.Total;
+        bar.hidden = !data.Running;
         if (data.Running && data.Processed === 0) bar.removeAttribute("value");
         else
           bar.value = data.Total
             ? Math.round((100 * data.Processed) / data.Total)
             : 0;
-        const minutes = Math.ceil(data.RemainingSeconds / 60);
-        const estimate =
-          data.Running && data.RemainingSeconds != null
-            ? " · " +
-              (data.RemainingSeconds < 60
-                ? t("lessThanMinute")
-                : minutes === 1
-                  ? t("aboutMinute")
-                  : t("aboutMinutes", minutes))
-            : "";
         const activeItems = (data.ActiveItems || [])
           .map((item) => t("scanItemStage", item.Name, t(item.Stage)))
           .join(" · ");
@@ -1098,9 +1168,7 @@
         $("#themeProgress").textContent =
           (data.Total
             ? t("scanning", data.Processed, data.Total)
-            : t("preparingScan")) +
-          (activity ? " · " + activity : "") +
-          estimate;
+            : t("preparingScan")) + (activity ? " · " + activity : "");
         const counts = [
           ["added", data.Added],
           ["existing", data.AlreadyThemed],
@@ -1115,21 +1183,70 @@
           .join(" · ");
         $("#themeScanDetails").hidden = !summary;
         $("#themeScanDetails").textContent = summary;
-        const rejections = $("#themeRejections");
-        rejections.replaceChildren();
-        if (data.Rejections.length) {
-          const heading = document.createElement("h4");
-          heading.textContent = t("recentSkipped");
-          const list = document.createElement("ul");
-          for (const reason of data.Rejections) {
-            const item = document.createElement("li");
-            item.textContent =
-              reason.Name +
-              ": " +
-              t(strings?.[reason.Code] ? reason.Code : "reasonNoMatch");
-            list.append(item);
+        const issues = data.Issues || [];
+        const issuesKey =
+          data.RunId + ":" + issues.length + ":" + issues.at(-1)?.At;
+        if (issuesKey !== lastIssuesKey) {
+          lastIssuesKey = issuesKey;
+          const container = $("#themeIssues");
+          container.hidden = issues.length === 0;
+          container.replaceChildren();
+          if (issues.length) {
+            const heading = document.createElement("h4");
+            heading.textContent = t("scanIssues");
+            const list = document.createElement("ul");
+            for (const issue of issues) {
+              const item = document.createElement("li");
+              item.className = issue.Failed
+                ? "themeIssue themeIssueFailed"
+                : "themeIssue";
+              const header = document.createElement("div");
+              header.className = "themeIssueHeader";
+              const name = document.createElement("strong");
+              name.textContent = issue.Name;
+              const kind = document.createElement("span");
+              kind.className = "themeIssueKind";
+              kind.textContent = t(issue.Failed ? "failed" : "scanSkipped");
+              const time = document.createElement("time");
+              time.dateTime = issue.At;
+              time.textContent = new Date(issue.At).toLocaleString();
+              header.append(name, kind, time);
+              const reason = document.createElement("p");
+              reason.textContent = t(
+                strings?.[issue.Code] ? issue.Code : "reasonNoMatch",
+              );
+              item.append(header, reason);
+              if (issue.Diagnostic) {
+                const copy = document.createElement("button", "emby-button");
+                copy.className = "emby-button";
+                copy.type = "button";
+                copy.textContent = t("copyError");
+                copy.onclick = async () => {
+                  try {
+                    if (navigator.clipboard?.writeText) {
+                      await navigator.clipboard.writeText(issue.Diagnostic);
+                    } else {
+                      const input = document.createElement("textarea");
+                      input.value = issue.Diagnostic;
+                      input.style.position = "fixed";
+                      input.style.opacity = "0";
+                      page.append(input);
+                      input.select();
+                      const copied = document.execCommand("copy");
+                      input.remove();
+                      if (!copied) throw Error("Copy failed");
+                    }
+                    copy.textContent = t("errorCopied");
+                  } catch {
+                    toast(t("copyErrorFailed"));
+                  }
+                };
+                item.append(copy);
+              }
+              list.append(item);
+            }
+            container.append(heading, list);
           }
-          rejections.append(heading, list);
         }
       }
       const poll = () =>
