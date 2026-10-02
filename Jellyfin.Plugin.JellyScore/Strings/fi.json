@@ -5,7 +5,7 @@
   "scanRateLimited": "Skannaus pysähtyi: YouTube rajoittaa pyyntöjä",
   "scanStopped": "Skannaus pysähtyi virheeseen",
   "lastScanDates": "Aloitettu {0} · Päättynyt {1}",
-  "scanIssues": "Viimeaikaiset ongelmat",
+  "scanIssues": "Ongelmat",
   "scanSkipped": "Ohitettu",
   "scanUnsupported": "Tähän kohteeseen ei voi lisätä teemaa",
   "scanItemFailed": "Kohdetta ei voitu käsitellä. Tarkista Jellyfinin lokit.",

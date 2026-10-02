@@ -5,7 +5,7 @@
   "scanRateLimited": "Skanowanie zatrzymane: limit żądań YouTube",
   "scanStopped": "Skanowanie zatrzymane przez błąd",
   "lastScanDates": "Początek {0} · Koniec {1}",
-  "scanIssues": "Ostatnie problemy",
+  "scanIssues": "Problemy",
   "scanSkipped": "Pominięto",
   "scanUnsupported": "Nie można dodać motywu do tego elementu",
   "scanItemFailed": "Nie udało się przetworzyć elementu. Sprawdź dzienniki Jellyfin.",

@@ -232,18 +232,18 @@ public sealed class ThemeScan(ILibraryManager library, ThemeService themes, Stor
                 catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
                 catch (RateLimitFailure e)
                 {
-                    var diagnostic = $"Theme scan paused: {e.Message}";
+                    var diagnostic = $"Theme scan paused for {item.Name} ({item.Id}): {e.Message}";
                     lock (status)
                     {
                         status.StoppedReason = "scanRateLimited";
                         AddIssue(status, new ScanIssue(item.Name, "scanRateLimited", true, DateTimeOffset.UtcNow, diagnostic));
                     }
-                    logger.LogWarning("Theme scan paused: {Message}", e.Message);
+                    logger.LogWarning("Theme scan paused for {Name} ({ItemId}): {Message}", item.Name, item.Id, e.Message);
                     throw;
                 }
                 catch (Exception e)
                 {
-                    var diagnostic = $"Theme scan failed for {item.Id}: {e.Message}";
+                    var diagnostic = $"Theme scan failed for {item.Name} ({item.Id}): {e.Message}";
                     lock (status)
                     {
                         status.Failed++;
@@ -254,7 +254,7 @@ public sealed class ThemeScan(ILibraryManager library, ThemeService themes, Stor
                             _ => "scanItemFailed"
                         }, true, DateTimeOffset.UtcNow, diagnostic));
                     }
-                    logger.LogWarning("Theme scan failed for {ItemId}: {Message}", item.Id, e.Message);
+                    logger.LogWarning("Theme scan failed for {Name} ({ItemId}): {Message}", item.Name, item.Id, e.Message);
                 }
                 finally { lock (status) { status.ActiveItems = []; status.CurrentItem = null; } }
                 lock (status)

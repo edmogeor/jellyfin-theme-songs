@@ -3,3 +3,4 @@
 dist/
 references/
 node_modules/
+__pycache__/

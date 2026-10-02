@@ -5,7 +5,7 @@
   "scanRateLimited": "扫描已停止：YouTube 请求受限",
   "scanStopped": "扫描因错误而停止",
   "lastScanDates": "开始 {0} · 结束 {1}",
-  "scanIssues": "最近的问题",
+  "scanIssues": "问题",
   "scanSkipped": "已跳过",
   "scanUnsupported": "此项目无法添加主题音乐",
   "scanItemFailed": "无法处理此项目。请查看 Jellyfin 日志。",

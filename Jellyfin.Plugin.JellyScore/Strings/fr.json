@@ -5,7 +5,7 @@
   "scanRateLimited": "Analyse arrêtée : limite de requêtes YouTube",
   "scanStopped": "Analyse arrêtée par une erreur",
   "lastScanDates": "Début {0} · Fin {1}",
-  "scanIssues": "Problèmes récents",
+  "scanIssues": "Problèmes",
   "scanSkipped": "Ignoré",
   "scanUnsupported": "Cet élément ne peut pas recevoir de thème",
   "scanItemFailed": "Impossible de traiter cet élément. Consultez les journaux Jellyfin.",

@@ -5,7 +5,7 @@
   "scanRateLimited": "スキャン停止：YouTube のリクエスト制限",
   "scanStopped": "エラーによりスキャンが停止しました",
   "lastScanDates": "開始 {0} · 終了 {1}",
-  "scanIssues": "最近の問題",
+  "scanIssues": "問題",
   "scanSkipped": "スキップ",
   "scanUnsupported": "このアイテムにはテーマ曲を追加できません",
   "scanItemFailed": "このアイテムを処理できませんでした。Jellyfin のログを確認してください。",

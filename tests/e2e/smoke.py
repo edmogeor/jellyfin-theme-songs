@@ -1,62 +1,12 @@
 """Exercise plugin discovery and the admin boundary in an actual Jellyfin 12 server."""
 
-import json
 import os
 import subprocess
 import time
-import urllib.error
-import urllib.parse
-import urllib.request
 import uuid
+from setup import request, wizard, libraries
 
-BASE = "http://127.0.0.1:18096"
 PLUGIN = "129e8a8b-87f1-48d3-802b-7dd151d72920"
-through_container = False
-
-
-def container_request(method, path, data, headers, timeout):
-    command = [
-        "docker", "compose", "-f", "tests/e2e/compose.yaml", "exec", "-T", "jellyfin",
-        "curl", "--silent", "--show-error", "--max-time", str(timeout),
-        "--write-out", "\n%{http_code}", "--request", method,
-    ]
-    for name, value in headers.items():
-        command.extend(["--header", f"{name}: {value}"])
-    if data is not None:
-        command.extend(["--data-binary", "@-"])
-    command.append("http://127.0.0.1:8096" + path)
-    try:
-        result = subprocess.run(command, input=data, capture_output=True, timeout=timeout + 5, check=True)
-        content, _, status = result.stdout.rpartition(b"\n")
-        return int(status), json.loads(content or b"null")
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, ValueError):
-        return 503, None
-
-
-def request(method, path, body=None, token=None, timeout=5):
-    global through_container
-    headers = {"Content-Type": "application/json"}
-    headers["Authorization"] = (
-        f'MediaBrowser Token="{token}"'
-        if token
-        else 'MediaBrowser Client="e2e", Device="e2e", DeviceId="e2e", Version="1"'
-    )
-    data = json.dumps(body).encode() if body is not None else None
-    if through_container:
-        return container_request(method, path, data, headers, timeout)
-    try:
-        with urllib.request.urlopen(
-            urllib.request.Request(BASE + path, data=data, headers=headers, method=method), timeout=timeout
-        ) as response:
-            return response.status, json.loads(response.read() or b"null")
-    except urllib.error.HTTPError as error:
-        try:
-            return error.code, json.loads(error.read())
-        except (ValueError, UnicodeDecodeError):
-            return error.code, None
-    except (urllib.error.URLError, ConnectionError, TimeoutError):
-        through_container = True
-        return container_request(method, path, data, headers, timeout)
 
 
 def field(data, name):
@@ -131,21 +81,7 @@ for _ in range(60):
 else:
     raise SystemExit("Jellyfin did not start")
 
-if not info.get("StartupWizardCompleted", False):
-    for method, endpoint, body in [
-        ("POST", "/Startup/Configuration", {"UICulture": "en-US", "MetadataCountryCode": "US", "PreferredMetadataLanguage": "en"}),
-        ("GET", "/Startup/User", None),
-        ("POST", "/Startup/User", {"Name": "user", "Password": "password"}),
-        ("POST", "/Startup/RemoteAccess", {"EnableRemoteAccess": True, "EnableAutomaticPortMapping": False}),
-        ("POST", "/Startup/Complete", None),
-    ]:
-        for _ in range(30):
-            status, _ = request(method, endpoint, body)
-            if status in (200, 204):
-                break
-            time.sleep(2)
-        print(f"{endpoint}: {status}", flush=True)
-        assert status in (200, 204), f"wizard step {endpoint}: {status}"
+wizard()
 
 for _ in range(30):
     status, login = request("POST", "/Users/AuthenticateByName", {"Username": "user", "Pw": "password"})
@@ -290,15 +226,7 @@ print("Jellyfin 12 plugin smoke checks passed")
 if os.environ.get("LIVE_YOUTUBE") == "0":
     raise SystemExit(0)
 print("Creating movie and TV libraries...", flush=True)
-status, existing = request("GET", "/Library/VirtualFolders", token=token)
-for name, kind, media_path in (("Films", "movies", "/media/movies"), ("Shows", "tvshows", "/media/shows"),
-                               ("Other films", "movies", "/media/unused")):
-    if not any(folder["Name"] == name for folder in existing):
-        path = "/Library/VirtualFolders?" + urllib.parse.urlencode(
-            {"name": name, "collectionType": kind, "paths": media_path, "refreshLibrary": "false"}
-        )
-        status, _ = request("POST", path, {}, token)
-        assert status == 204, f"create {name} library: {status}"
+libraries(token)
 print("Waiting for movie and series indexing...", flush=True)
 status, folders = request("GET", "/Library/VirtualFolders", token=token)
 assert status == 200, f"list libraries: {status}"

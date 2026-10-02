@@ -5,7 +5,7 @@
   "scanRateLimited": "Skanning stoppet: YouTube begrenser forespørsler",
   "scanStopped": "Skanning stoppet av en feil",
   "lastScanDates": "Startet {0} · Avsluttet {1}",
-  "scanIssues": "Nylige problemer",
+  "scanIssues": "Problemer",
   "scanSkipped": "Hoppet over",
   "scanUnsupported": "Dette elementet kan ikke få et tema",
   "scanItemFailed": "Kunne ikke behandle dette elementet. Se Jellyfin-loggene.",

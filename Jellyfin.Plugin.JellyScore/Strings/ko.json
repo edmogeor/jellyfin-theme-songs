@@ -5,7 +5,7 @@
   "scanRateLimited": "스캔 중지: YouTube 요청 제한",
   "scanStopped": "오류로 스캔 중지됨",
   "lastScanDates": "시작 {0} · 종료 {1}",
-  "scanIssues": "최근 문제",
+  "scanIssues": "문제",
   "scanSkipped": "건너뜀",
   "scanUnsupported": "이 항목에는 테마를 추가할 수 없습니다",
   "scanItemFailed": "이 항목을 처리할 수 없습니다. Jellyfin 로그를 확인하세요.",

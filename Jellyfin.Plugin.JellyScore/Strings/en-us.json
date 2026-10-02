@@ -6,7 +6,7 @@
   "scanRateLimited": "Scan stopped: YouTube rate limit",
   "scanStopped": "Scan stopped by an error",
   "lastScanDates": "Started {0} · Finished {1}",
-  "scanIssues": "Recent issues",
+  "scanIssues": "Issues",
   "scanSkipped": "Skipped",
   "scanUnsupported": "Item is not eligible for a theme",
   "scanItemFailed": "Could not process this item. Check the Jellyfin logs.",

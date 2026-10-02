@@ -5,7 +5,7 @@
   "scanRateLimited": "Scan gestopt: YouTube beperkt verzoeken",
   "scanStopped": "Scan gestopt door een fout",
   "lastScanDates": "Gestart {0} · Beëindigd {1}",
-  "scanIssues": "Recente problemen",
+  "scanIssues": "Problemen",
   "scanSkipped": "Overgeslagen",
   "scanUnsupported": "Dit item komt niet in aanmerking voor een thema",
   "scanItemFailed": "Dit item kon niet worden verwerkt. Raadpleeg de Jellyfin-logboeken.",

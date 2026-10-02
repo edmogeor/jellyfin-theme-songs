@@ -5,7 +5,7 @@
   "scanRateLimited": "Varredura interrompida: limite de solicitações do YouTube",
   "scanStopped": "Varredura interrompida por um erro",
   "lastScanDates": "Início {0} · Fim {1}",
-  "scanIssues": "Problemas recentes",
+  "scanIssues": "Problemas",
   "scanSkipped": "Ignorado",
   "scanUnsupported": "Este item não pode receber um tema",
   "scanItemFailed": "Não foi possível processar este item. Consulte os registros do Jellyfin.",
