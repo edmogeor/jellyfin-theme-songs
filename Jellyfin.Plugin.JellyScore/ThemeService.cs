@@ -154,15 +154,15 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
 
     private async Task<bool> NoCompetingEdition(BaseItem item, Work work, CancellationToken ct)
     {
-        if (item is not Movie || work.Year is null || !item.TryGetProviderId(MetadataProvider.Tmdb, out var tmdbId)) return false;
+        if (item is not (Movie or Series) || work.Year is null || !item.TryGetProviderId(MetadataProvider.Tmdb, out var tmdbId)) return false;
         var options = library.GetLibraryOptions(item);
-        if (!baseItemManager.IsMetadataFetcherEnabled(item, options.GetTypeOptions(nameof(Movie)), "TheMovieDb") ||
+        if (!baseItemManager.IsMetadataFetcherEnabled(item is Movie ? item : new Movie(), options.GetTypeOptions(nameof(Movie)), "TheMovieDb") ||
             !baseItemManager.IsMetadataFetcherEnabled(new Series(), options.GetTypeOptions(nameof(Series)), "TheMovieDb")) return false;
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromSeconds(15));
         try
         {
-            var results = (await providers.GetRemoteSearchResults<Movie, MovieInfo>(new RemoteSearchQuery<MovieInfo>
+            var films = (await providers.GetRemoteSearchResults<Movie, MovieInfo>(new RemoteSearchQuery<MovieInfo>
             {
                 SearchProviderName = "TheMovieDb",
                 SearchInfo = new MovieInfo { Name = work.Title }
@@ -171,9 +171,9 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
             {
                 SearchProviderName = "TheMovieDb",
                 SearchInfo = new SeriesInfo { Name = work.Title }
-            }, timeout.Token)).Select(r => r.Name).ToArray();
+            }, timeout.Token)).Select(r => (r.GetProviderId(MetadataProvider.Tmdb), r.Name, r.ProductionYear)).ToArray();
             // ponytail: Jellyfin exposes only the first page and hides provider errors; a full page or missing target cannot establish uniqueness.
-            return Matcher.NoCompetingEdition(work, tmdbId, results, shows);
+            return Matcher.NoCompetingEdition(work, tmdbId, films, shows);
         }
         catch (Exception e) when (!ct.IsCancellationRequested)
         {
@@ -290,7 +290,7 @@ public sealed class ThemeService(ILibraryManager library, IProviderManager provi
             async Task<(Work Work, Choice? Choice, bool Checked)> Select(Work currentWork, IReadOnlyList<Video> candidates, bool checkedEdition)
             {
                 var selected = Matcher.Select(currentWork, candidates, excludedIds, excludedRecordings, minimumMatchStrength);
-                if (item is not Movie || checkedEdition || currentWork.Year is null) return (currentWork, selected, checkedEdition);
+                if (item is not (Movie or Series) || checkedEdition || currentWork.Year is null) return (currentWork, selected, checkedEdition);
                 var withoutYear = currentWork with { NoCompetingEdition = true };
                 var alternative = Matcher.Select(withoutYear, candidates, excludedIds, excludedRecordings, minimumMatchStrength);
                 if (alternative is null || alternative.Video.Id == selected?.Video.Id) return (currentWork, selected, false);

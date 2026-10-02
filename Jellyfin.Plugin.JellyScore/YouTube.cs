@@ -429,10 +429,11 @@ public static partial class Matcher
     private static bool SameWorkTitle(Work work, string title) => new[] { work.Title, work.OriginalTitle }
         .Where(s => !string.IsNullOrWhiteSpace(s)).Any(s => Normal(s!) == Normal(title));
     public static bool NoCompetingEdition(Work work, string id, IReadOnlyList<(string? Id, string? Title, int? Year)> films,
-        IReadOnlyList<string?> shows) =>
-        films.Count is > 0 and < 20 && shows.Count < 20 && films.Any(r => r.Id == id && r.Year == work.Year) &&
-        !films.Any(r => r.Id != id && (r.Title is null || SameWorkTitle(work, r.Title))) &&
-        !shows.Any(title => title is null || SameWorkTitle(work, title));
+        IReadOnlyList<(string? Id, string? Title, int? Year)> shows) =>
+        films.Count < 20 && shows.Count < 20 &&
+        (work.Series ? shows : films) is { Count: > 0 } target && target.Any(r => r.Id == id && r.Year == work.Year) &&
+        !target.Any(r => r.Id != id && (r.Title is null || SameWorkTitle(work, r.Title))) &&
+        !(work.Series ? films : shows).Any(r => r.Title is null || SameWorkTitle(work, r.Title));
     private static bool Contains(string text, string title) => (" " + Normal(text) + " ").Contains(" " + Normal(title) + " ", StringComparison.Ordinal);
     private static bool EpisodeClip(string title) => IntroScene().IsMatch(title) ||
         EpisodeNumber().IsMatch(title) && CharacterIntro().IsMatch(title);
@@ -567,7 +568,7 @@ public static partial class Matcher
         if (work.Year is not null && video.ReleaseYear is null && linkedYear is null && !Years().IsMatch(identityText) &&
             Normal(work.Title).Split(' ').Length <= JellyScoreConstants.AmbiguousTitleWordLimit &&
             !(work.NoCompetingEdition && workTitles.Any(s => Contains(identityText, s!))) &&
-            !(work.Series && Contains(title, work.Title)) && !(Sequel().IsMatch(work.Title) && Contains(title, work.Title)))
+            !(Sequel().IsMatch(work.Title) && Contains(title, work.Title)))
         { reason = "Release year missing for an ambiguous title"; return null; }
         var albumMatches = Contains(album, work.Title) || work.OriginalTitle is not null && Contains(album, work.OriginalTitle);
         var parts = trackIndex >= 0 ? lines[trackIndex].Split('·', StringSplitOptions.TrimEntries) : [];

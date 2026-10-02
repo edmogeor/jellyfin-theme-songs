@@ -90,8 +90,8 @@ check(Matcher.NoCompetingEdition(shawshank, "123", [knownFilm, otherFilm], []),
     "unrelated search results do not make an identified film ambiguous");
 check(!Matcher.NoCompetingEdition(shawshank, "123", [knownFilm, ("456", shawshank.Title, 2020)], []),
     "a same-title remake keeps the release-year requirement");
-check(!Matcher.NoCompetingEdition(shawshank, "123", [knownFilm], [shawshank.Title]) &&
-    !Matcher.NoCompetingEdition(shawshank, "123", [knownFilm], Enumerable.Repeat<string?>("Other Show", 20).ToArray()),
+check(!Matcher.NoCompetingEdition(shawshank, "123", [knownFilm], [("789", shawshank.Title, 1994)]) &&
+    !Matcher.NoCompetingEdition(shawshank, "123", [knownFilm], Enumerable.Repeat<(string?, string?, int?)>(("789", "Other Show", 2020), 20).ToArray()),
     "same-title TV edition or truncated TV results keep the release-year requirement");
 check(!Matcher.NoCompetingEdition(shawshank, "123", [otherFilm], []) &&
     !Matcher.NoCompetingEdition(shawshank, "123", [], []) &&
@@ -192,6 +192,21 @@ check(Matcher.Evaluate(harry, video("ccccccccccc", "Hedwig's Theme", "", 309)) i
     "search term alone does not establish which film a named track belongs to");
 var office = new Work("The Office (US)", null, 2005, true);
 var supernatural = new Work("Supernatural", null, 2005, true);
+var knownShow = (Id: (string?)"123", Title: (string?)"Supernatural", Year: (int?)2005);
+check(Matcher.NoCompetingEdition(supernatural, "123", [], [knownShow]) &&
+    !Matcher.NoCompetingEdition(supernatural, "123", [("456", "Supernatural", 2020)], [knownShow]) &&
+    !Matcher.NoCompetingEdition(supernatural, "123", [], [knownShow, ("789", "Supernatural", 2021)]) &&
+    !Matcher.NoCompetingEdition(supernatural, "123", [], [("789", "Supernatural", 2005)]) &&
+    !Matcher.NoCompetingEdition(supernatural, "123", [], Enumerable.Repeat(knownShow, 20).ToArray()),
+    "yearless short TV titles need a unique, complete catalog match across films and shows");
+check(Matcher.Evaluate(supernatural, video("bbbbbbbbbbb", "Supernatural Theme Song", "")) is null &&
+    Matcher.Evaluate(supernatural with { NoCompetingEdition = true }, video("bbbbbbbbbbb", "Supernatural Theme Song", "")) is not null &&
+    Matcher.Evaluate(supernatural with { NoCompetingEdition = true }, video("bbbbbbbbbbb", "Supernatural 2024 Theme Song", "")) is null,
+    "catalog verification permits missing years but never conflicting years for TV");
+check(Matcher.Evaluate(supernatural, video("bbbbbbbbbbb", "Supernatural 2005 Theme Song", ""))!.Score >
+    Matcher.Evaluate(supernatural with { NoCompetingEdition = true }, video("bbbbbbbbbbb", "Supernatural Theme Song", ""))!.Score,
+    "a matching TV year ranks higher than a verified yearless upload");
+supernatural = supernatural with { NoCompetingEdition = true };
 var deathScene = video("5EcsBgxXDqc", "Death's Intro... Supernatural S5E21", "", 120);
 var supernaturalOpening = video("bbbbbbbbbbb", "Supernatural S5E21 Opening Theme", "", 20);
 var titleCardMontage = new Video("wg0yCihdKio", "Supernatural Seasons 1-15 Main Title Cards", "Property of Warner Bros and the CW\nI don't own anything", "Tye Judy", 87,
@@ -240,8 +255,10 @@ check(Matcher.Select(supernatural, [plainIntro, explicitTheme], new HashSet<stri
 check(Matcher.Evaluate(supernatural, explicitTheme with { Title = "Supernatural Original Soundtrack OST Official Theme Song" })!.Score -
     Matcher.Evaluate(supernatural, explicitTheme)!.Score == 15,
     "weak soundtrack labels count once and official claims contribute only a small bonus");
-check(Matcher.Evaluate(office, video("bbbbbbbbbbb", "The Office (US) Opening Credits", "", 70)) is { Score: > 0 },
-    "series with an explicit regional qualifier need not repeat the premiere year");
+check(Matcher.Evaluate(office, video("bbbbbbbbbbb", "The Office (US) Opening Credits", "", 70)) is null &&
+    Matcher.Evaluate(office with { NoCompetingEdition = true }, video("bbbbbbbbbbb", "The Office (US) Opening Credits", "", 70)) is { Score: > 0 },
+    "series with a regional qualifier need catalog verification when the premiere year is missing");
+office = office with { NoCompetingEdition = true };
 check(Matcher.Evaluate(office, video("bbbbbbbbbbb", "The Office UK Opening Credits", "", 70)) is null,
     "different regional version rejected");
 check(Matcher.Evaluate(office, video("bbbbbbbbbbb", "The Office (US) Opening Credits", "", 10)) is not null,
